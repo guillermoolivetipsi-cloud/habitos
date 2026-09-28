@@ -4,18 +4,21 @@ import { hoy as calcularHoy } from "./lib/fecha";
 import Ajustes from "./pantallas/Ajustes";
 import Detalle from "./pantallas/Detalle";
 import Editor from "./pantallas/Editor";
+import Cierre from "./pantallas/Cierre";
 import Hoy from "./pantallas/Hoy";
+import Revision, { type Cierre as TipoCierre } from "./pantallas/Revision";
 import type { Habito } from "./tipos";
 import { Barra, Icono } from "./ui/piezas";
 
-type Encima = { tipo: "detalle"; id: string } | { tipo: "editor"; id?: string };
+type Encima = { tipo: "detalle"; id: string } | { tipo: "editor"; id?: string } | { tipo: "cierre"; cierre: TipoCierre };
+const claveEncima = (e?: Encima) => (!e ? "" : e.tipo === "cierre" ? `cierre${e.cierre.periodo}${e.cierre.inicio}` : `${e.tipo}${e.id ?? ""}`);
 type Pestana = "hoy" | "objetivos" | "revision" | "ajustes";
 const PESTANAS: [Pestana, string, string][] = [["hoy", "check_box", "Hoy"], ["objetivos", "flag", "Objetivos"], ["revision", "insights", "Revisión"], ["ajustes", "settings", "Ajustes"]];
 
 export default function App() {
   const datos = useDatos();
   const [pestana, setPestana] = useState<Pestana>("hoy");
-  const [subAjustes, setSubAjustes] = useState<null | "importar" | "archivados">(null);
+  const [subAjustes, setSubAjustes] = useState<null | "importar" | "archivados" | "identidades">(null);
   // Pantallas encima de la pestaña: detalle de un hábito y editor.
   const [pila, setPila] = useState<Encima[]>([]);
   const abrir = (e: Encima) => setPila((p) => [...p, e]);
@@ -42,13 +45,16 @@ export default function App() {
     contenido = <Detalle h={h} datos={datos} hoy={hoy} volver={volver} editar={() => abrir({ tipo: "editor", id: h.id })} avisar={avisar} />;
   } else if (arriba?.tipo === "editor") {
     contenido = <Editor datos={datos} hoy={hoy} habito={arriba.id ? buscar(arriba.id) : undefined} volver={volver} alTerminar={() => setPila([])} avisar={avisar} />;
+  } else if (arriba?.tipo === "cierre") {
+    contenido = <Cierre datos={datos} hoy={hoy} cierre={arriba.cierre} volver={volver} irARevision={() => { setPila([]); setPestana("revision"); }} />;
   } else if (pestana === "hoy") contenido = <Hoy datos={datos} hoy={hoy} avisar={avisar} abrirDetalle={(h: Habito) => abrir({ tipo: "detalle", id: h.id })} nuevo={() => abrir({ tipo: "editor" })} irAImportar={() => { setPestana("ajustes"); setSubAjustes("importar"); }} />;
   else if (pestana === "ajustes") contenido = <Ajustes datos={datos} hoy={hoy} sub={subAjustes} setSub={setSubAjustes} avisar={avisar} abrirDetalle={(id) => abrir({ tipo: "detalle", id })} />;
-  else contenido = <Proximamente titulo={pestana === "objetivos" ? "Objetivos" : "Revisión"} texto="Llega en una próxima etapa." />;
+  else if (pestana === "revision") contenido = <Revision datos={datos} hoy={hoy} avisar={avisar} abrirCierre={(c) => abrir({ tipo: "cierre", cierre: c })} abrirDetalle={(id) => abrir({ tipo: "detalle", id })} />;
+  else contenido = <Proximamente titulo="Objetivos" texto="Llega en la próxima etapa." />;
 
   return (
     <div className="app">
-      <main className="pantalla" key={`${pestana}-${arriba ? arriba.tipo + (arriba.id ?? "") : ""}-${subAjustes ?? ""}`}>{contenido}</main>
+      <main className="pantalla" key={`${pestana}-${claveEncima(arriba)}-${subAjustes ?? ""}`}>{contenido}</main>
       <nav className="nav">
         {PESTANAS.map(([k, i, l]) => (
           <button key={k} className={pestana === k ? "activo" : ""} aria-current={pestana === k ? "page" : undefined}

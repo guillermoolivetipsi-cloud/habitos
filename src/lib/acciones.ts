@@ -1,5 +1,6 @@
 import { db, PREFERENCIAS, type Preferencias } from "../db";
-import type { Dia, Habito, Valor } from "../tipos";
+import type { Dia, Habito, Identidad, Valor } from "../tipos";
+import type { AccionSugerida } from "./revision";
 import type { ResultadoImportacion } from "./importarLoop";
 
 /** Tocar el círculo: marca hecho; si ya tenía algo, lo desmarca. */
@@ -93,3 +94,41 @@ export async function eliminar(id: string) {
     await db.objetivos.toCollection().modify((o) => { o.habitos = o.habitos.filter((x) => x !== id); });
   });
 }
+
+/* ---------- Revisión ---------- */
+
+export const guardarNota = (clave: string, texto: string) => (texto.trim() ? db.notas.put({ clave, texto }) : db.notas.delete(clave));
+
+/** Aplica una sugerencia de Revisión y la anota en "Decisiones anteriores". Los cambios de frecuencia rigen desde hoy. */
+export async function aplicarSugerencia(h: Habito, accion: AccionSugerida, hoy: Dia) {
+  let texto = "";
+  if (accion.tipo === "bajar") {
+    await guardarHabito(h, { frecuencia: accion.frecuencia, desde: "hoy", hoy });
+    texto = `${accion.frecuencia.num} por semana`;
+  } else if (accion.tipo === "habiles") {
+    await guardarHabito(h, { frecuencia: { num: 5, den: 7, dias: [0, 1, 2, 3, 4] }, desde: "hoy", hoy });
+    texto = "lunes a viernes";
+  } else if (accion.tipo === "archivar") {
+    await archivar(h.id);
+    texto = "archivado";
+  } else {
+    // "Dejar así": no se vuelve a sugerir por 30 días.
+    const p = await leerPreferencias();
+    const hasta = new Date(Date.parse(hoy + "T12:00:00Z") + 30 * 864e5).toISOString().slice(0, 10);
+    await guardarPreferencia("descartadas", { ...p.descartadas, [h.id]: hasta });
+    texto = "dejar así";
+  }
+  await db.decisiones.add({ fecha: hoy, habito: h.id, nombre: h.nombre, texto });
+}
+
+/* ---------- Identidades ---------- */
+
+export const guardarIdentidad = (i: Identidad) => db.identidades.put(i);
+export async function borrarIdentidad(id: string) {
+  await db.transaction("rw", db.identidades, db.habitos, async () => {
+    await db.identidades.delete(id);
+    await db.habitos.where("id").above("").modify((h) => { if (h.identidad === id) h.identidad = null; });
+  });
+}
+/** Cada hábito vota por una sola identidad: asignarlo acá lo saca de la anterior. */
+export const asignarIdentidad = (habito: string, identidad: string | null) => db.habitos.update(habito, { identidad });

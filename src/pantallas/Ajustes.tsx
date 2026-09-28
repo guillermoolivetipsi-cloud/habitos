@@ -7,13 +7,15 @@ import { iniciarSql } from "../lib/sql";
 import { MESES_CORTOS, fechaCorta } from "../lib/fecha";
 import type { Dia } from "../tipos";
 import { Barra, Hoja, Icono, Interruptor } from "../ui/piezas";
+import Identidades from "./Identidades";
 
-type Sub = null | "importar" | "archivados";
+type Sub = null | "importar" | "archivados" | "identidades";
 
 export default function Ajustes({ datos, hoy, sub, setSub, avisar, abrirDetalle }: {
   datos: Datos; hoy: Dia; sub: Sub; setSub: (s: Sub) => void; avisar: (c: React.ReactNode) => void; abrirDetalle: (id: string) => void;
 }) {
   if (sub === "importar") return <Importar hoy={hoy} volver={() => setSub(null)} avisar={avisar} />;
+  if (sub === "identidades") return <Identidades datos={datos} volver={() => setSub(null)} avisar={avisar} />;
   if (sub === "archivados") return <Archivados datos={datos} volver={() => setSub(null)} avisar={avisar} abrirDetalle={abrirDetalle} />;
   const p = datos.prefs;
   const cambiar = <K extends keyof Preferencias>(k: K, v: Preferencias[K]) => guardarPreferencia(k, v);
@@ -29,6 +31,11 @@ export default function Ajustes({ datos, hoy, sub, setSub, avisar, abrirDetalle 
           <button className={`chip${p.agrupar === "area" ? " activo" : ""}`} onClick={() => cambiar("agrupar", "area")}>Área</button>
         </div>
       </div>
+      <button className="item" onClick={() => setSub("identidades")}>
+        <Icono n="person" estilo={{ color: "var(--mu)" }} />
+        <div className="t"><div>Identidades</div><div className="chico">{datos.identidades.length ? `${datos.identidades.length} identidades` : "Quién querés ser"}</div></div>
+        <Icono n="chevron_right" estilo={{ color: "#555" }} />
+      </button>
       <button className="item" onClick={() => setSub("archivados")}>
         <Icono n="archive" estilo={{ color: "var(--mu)" }} />
         <div className="t"><div>Archivados</div><div className="chico">{datos.archivados.length} hábitos</div></div>
@@ -38,6 +45,16 @@ export default function Ajustes({ datos, hoy, sub, setSub, avisar, abrirDetalle 
       <Opcion titulo="Días libres cuentan como cumplidos" detalle="En porcentajes y en el progreso de la semana." on={p.libresCumplen} alCambiar={() => cambiar("libresCumplen", !p.libresCumplen)} />
       <Opcion titulo="Patrones por día de la semana" detalle='La nota en Hoy ("los domingos 42% · el resto 73%").' on={p.patrones} alCambiar={() => cambiar("patrones", !p.patrones)} />
       <Opcion titulo="Invertir el orden de los días" detalle="En Semana, del más viejo al más nuevo. Por defecto hoy va primero." on={p.invertirSemana} alCambiar={() => cambiar("invertirSemana", !p.invertirSemana)} />
+      <div className="seccion">Revisión</div>
+      <Opcion titulo="Proponer ajustes" detalle="Bajar frecuencia, archivar o pasar a lunes a viernes, con botones de un toque." on={p.sugerencias} alCambiar={() => cambiar("sugerencias", !p.sugerencias)} />
+      <div className="item">
+        <div className="t"><div>Máximo de sugerencias por semana</div></div>
+        <div className="chips">{[1, 2, 3, 4, 5].map((n) => <button key={n} className={`chip${p.maximoSugerencias === n ? " activo" : ""}`} onClick={() => cambiar("maximoSugerencias", n)}>{n}</button>)}</div>
+      </div>
+      <div className="item">
+        <div className="t"><div>Sugerir cuando un hábito está por debajo de</div><div className="chico">del objetivo en los últimos 90 días</div></div>
+        <div className="chips">{[20, 30, 40, 50].map((n) => <button key={n} className={`chip${p.umbralSugerencias === n ? " activo" : ""}`} onClick={() => cambiar("umbralSugerencias", n)}>{n}%</button>)}</div>
+      </div>
       <div className="seccion">Tus datos</div>
       <button className="item" onClick={() => setSub("importar")}>
         <Icono n="download" estilo={{ color: "var(--mu)" }} />
