@@ -1,5 +1,5 @@
 import { db, PREFERENCIAS, type Preferencias } from "../db";
-import type { Dia, Habito, Identidad, Valor } from "../tipos";
+import type { Dia, Habito, Identidad, Objetivo, Valor } from "../tipos";
 import type { AccionSugerida } from "./revision";
 import type { ResultadoImportacion } from "./importarLoop";
 
@@ -132,3 +132,13 @@ export async function borrarIdentidad(id: string) {
 }
 /** Cada hábito vota por una sola identidad: asignarlo acá lo saca de la anterior. */
 export const asignarIdentidad = (habito: string, identidad: string | null) => db.habitos.update(habito, { identidad });
+
+/* ---------- Objetivos ---------- */
+
+export const guardarObjetivo = (o: Objetivo) => db.objetivos.put(o);
+export const borrarObjetivo = (id: string) => db.objetivos.delete(id);
+export const sumarManual = async (id: string, n: number) => {
+  const o = await db.objetivos.get(id);
+  if (o) await db.objetivos.update(id, { manual: Math.max(0, o.manual + n) });
+};
+export const responderObjetivo = (id: string, logrado: boolean) => db.objetivos.update(id, { logrado });

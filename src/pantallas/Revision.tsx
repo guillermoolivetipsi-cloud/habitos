@@ -220,7 +220,8 @@ function SemanasCerradas({ datos, hoy, op, abrirCierre }: { datos: Datos; hoy: s
 
 function Mes({ datos, a, b, antA, antB, hoy, op }: { datos: Datos; a: string; b: string; antA: string; antB: string; hoy: string; op: Opciones }) {
   const semanas: string[] = [];
-  for (let l = lunes(a); l <= (b > hoy ? hoy : b); l = sumarDias(l, 7)) semanas.push(l);
+  // Solo semanas con al menos un día terminado (hoy todavía está en curso).
+  for (let l = lunes(a); l <= (b >= hoy ? sumarDias(hoy, -1) : b); l = sumarDias(l, 7)) semanas.push(l);
   const pcts = semanas.map((l) => cumplimiento(datos.habitos, datos.historiales, l, sumarDias(l, 6), hoy, op).porcentaje);
   const filas = porHabito(datos.habitos, datos.historiales, a, b, hoy, op);
   const cb = cambios(datos.habitos, datos.historiales, [a, b], [antA, antB], hoy, op);

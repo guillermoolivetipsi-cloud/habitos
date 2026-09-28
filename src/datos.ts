@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, PREFERENCIAS, type Decision, type Preferencias } from "./db";
 import type { Historial } from "./lib/calculos";
-import type { Habito, Identidad } from "./tipos";
+import type { Habito, Identidad, Objetivo } from "./tipos";
 import { leerPreferencias } from "./lib/acciones";
 
 export interface Datos {
@@ -9,6 +9,7 @@ export interface Datos {
   archivados: Habito[];
   identidades: Identidad[];
   notas: Map<string, string>;
+  objetivos: Objetivo[];
   decisiones: Decision[];
   historiales: Map<string, Historial>;
   prefs: Preferencias;
@@ -22,6 +23,7 @@ export function useDatos(): Datos {
   const identidades = useLiveQuery(() => db.identidades.toArray(), []);
   const registros = useLiveQuery(() => db.registros.toArray(), []);
   const notas = useLiveQuery(() => db.notas.toArray(), []);
+  const objetivos = useLiveQuery(() => db.objetivos.toArray(), []);
   const decisiones = useLiveQuery(() => db.decisiones.orderBy("fecha").reverse().toArray(), []);
   const prefs = useLiveQuery(() => leerPreferencias(), []);
   const historiales = new Map<string, Historial>();
@@ -31,5 +33,5 @@ export function useDatos(): Datos {
     m.set(r.dia, r);
   }
   for (const h of habitos ?? []) if (!historiales.has(h.id)) historiales.set(h.id, new Map());
-  return { habitos: habitos ?? [], archivados: todos?.filter((h) => h.archivado) ?? [], identidades: identidades ?? [], notas: new Map((notas ?? []).map((n) => [n.clave, n.texto])), decisiones: decisiones ?? [], historiales, prefs: prefs ?? PREFERENCIAS, cargando: !habitos || !registros || !prefs };
+  return { habitos: habitos ?? [], archivados: todos?.filter((h) => h.archivado) ?? [], identidades: identidades ?? [], notas: new Map((notas ?? []).map((n) => [n.clave, n.texto])), decisiones: decisiones ?? [], objetivos: objetivos ?? [], historiales, prefs: prefs ?? PREFERENCIAS, cargando: !habitos || !registros || !prefs };
 }

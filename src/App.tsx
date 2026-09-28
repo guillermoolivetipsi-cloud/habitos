@@ -6,12 +6,13 @@ import Detalle from "./pantallas/Detalle";
 import Editor from "./pantallas/Editor";
 import Cierre from "./pantallas/Cierre";
 import Hoy from "./pantallas/Hoy";
+import Objetivos, { DetalleObjetivo, FormObjetivo, type NuevoObjetivo } from "./pantallas/Objetivos";
 import Revision, { type Cierre as TipoCierre } from "./pantallas/Revision";
 import type { Habito } from "./tipos";
-import { Barra, Icono } from "./ui/piezas";
+import { Icono } from "./ui/piezas";
 
-type Encima = { tipo: "detalle"; id: string } | { tipo: "editor"; id?: string } | { tipo: "cierre"; cierre: TipoCierre };
-const claveEncima = (e?: Encima) => (!e ? "" : e.tipo === "cierre" ? `cierre${e.cierre.periodo}${e.cierre.inicio}` : `${e.tipo}${e.id ?? ""}`);
+type Encima = { tipo: "detalle"; id: string } | { tipo: "editor"; id?: string } | { tipo: "cierre"; cierre: TipoCierre } | { tipo: "objetivo"; id: string } | { tipo: "formObjetivo"; nuevo: NuevoObjetivo; id?: string };
+const claveEncima = (e?: Encima) => (!e ? "" : e.tipo === "cierre" ? `cierre${e.cierre.periodo}${e.cierre.inicio}` : e.tipo === "formObjetivo" ? `form${e.id ?? e.nuevo.mes ?? ""}` : `${e.tipo}${e.id ?? ""}`);
 type Pestana = "hoy" | "objetivos" | "revision" | "ajustes";
 const PESTANAS: [Pestana, string, string][] = [["hoy", "check_box", "Hoy"], ["objetivos", "flag", "Objetivos"], ["revision", "insights", "Revisión"], ["ajustes", "settings", "Ajustes"]];
 
@@ -46,11 +47,17 @@ export default function App() {
   } else if (arriba?.tipo === "editor") {
     contenido = <Editor datos={datos} hoy={hoy} habito={arriba.id ? buscar(arriba.id) : undefined} volver={volver} alTerminar={() => setPila([])} avisar={avisar} />;
   } else if (arriba?.tipo === "cierre") {
-    contenido = <Cierre datos={datos} hoy={hoy} cierre={arriba.cierre} volver={volver} irARevision={() => { setPila([]); setPestana("revision"); }} />;
+    contenido = <Cierre datos={datos} hoy={hoy} cierre={arriba.cierre} volver={volver} irARevision={() => { setPila([]); setPestana("revision"); }}
+      abrirObjetivo={(id) => abrir({ tipo: "objetivo", id })} nuevoObjetivo={(n) => abrir({ tipo: "formObjetivo", nuevo: n })} />;
+  } else if (arriba?.tipo === "objetivo" && datos.objetivos.some((o) => o.id === arriba.id)) {
+    const o = datos.objetivos.find((x) => x.id === arriba.id)!;
+    contenido = <DetalleObjetivo o={o} datos={datos} hoy={hoy} volver={volver} avisar={avisar} editar={() => abrir({ tipo: "formObjetivo", nuevo: { periodo: o.periodo }, id: o.id })} />;
+  } else if (arriba?.tipo === "formObjetivo") {
+    contenido = <FormObjetivo datos={datos} hoy={hoy} inicial={arriba.nuevo} existente={datos.objetivos.find((o) => o.id === arriba.id)} volver={volver} avisar={avisar} />;
   } else if (pestana === "hoy") contenido = <Hoy datos={datos} hoy={hoy} avisar={avisar} abrirDetalle={(h: Habito) => abrir({ tipo: "detalle", id: h.id })} nuevo={() => abrir({ tipo: "editor" })} irAImportar={() => { setPestana("ajustes"); setSubAjustes("importar"); }} />;
   else if (pestana === "ajustes") contenido = <Ajustes datos={datos} hoy={hoy} sub={subAjustes} setSub={setSubAjustes} avisar={avisar} abrirDetalle={(id) => abrir({ tipo: "detalle", id })} />;
   else if (pestana === "revision") contenido = <Revision datos={datos} hoy={hoy} avisar={avisar} abrirCierre={(c) => abrir({ tipo: "cierre", cierre: c })} abrirDetalle={(id) => abrir({ tipo: "detalle", id })} />;
-  else contenido = <Proximamente titulo="Objetivos" texto="Llega en la próxima etapa." />;
+  else contenido = <Objetivos datos={datos} hoy={hoy} abrir={(id) => abrir({ tipo: "objetivo", id })} nuevo={(n) => abrir({ tipo: "formObjetivo", nuevo: n })} />;
 
   return (
     <div className="app">
@@ -65,14 +72,5 @@ export default function App() {
       </nav>
       {aviso && <div className="aviso-flotante" role="status">{aviso}</div>}
     </div>
-  );
-}
-
-function Proximamente({ titulo, texto, volver }: { titulo: string; texto: string; volver?: () => void }) {
-  return (
-    <>
-      <Barra titulo={titulo} izquierda={volver && <button className="icono-btn" aria-label="Volver" onClick={volver}><Icono n="arrow_back" /></button>} />
-      <div className="tarjeta" style={{ marginTop: 12 }}><div className="mu">{texto}</div></div>
-    </>
   );
 }

@@ -6,6 +6,7 @@ import { INICIALES, MESES_CORTOS, fechaCorta, lunes, mesDe, nombreMes, sumarDias
 import { cambios, cumplimiento, hechosPorDia, porHabito, rangoMes, votos } from "../lib/revision";
 import { Barras, Lineas, redondeo } from "../ui/Graficos";
 import { Barra, Icono } from "../ui/piezas";
+import { TarjetaObjetivo, type NuevoObjetivo } from "./Objetivos";
 import { celda, mismaAltura, rangoSemanal, type Cierre as TipoCierre } from "./Revision";
 
 const mayus = (t: string) => t[0].toUpperCase() + t.slice(1);
@@ -13,8 +14,9 @@ const mayus = (t: string) => t[0].toUpperCase() + t.slice(1);
 const conPunto = (t: string) => (/[.?!]$/.test(t) ? t : `${t}.`);
 
 /** Resumen de cierre de una semana, un mes o un año. El domingo (o el último día) es un día más: se actualiza solo. */
-export default function Cierre({ datos, hoy, cierre, volver, irARevision }: {
+export default function Cierre({ datos, hoy, cierre, volver, irARevision, abrirObjetivo, nuevoObjetivo }: {
   datos: Datos; hoy: string; cierre: TipoCierre; volver: () => void; irARevision: () => void;
+  abrirObjetivo: (id: string) => void; nuevoObjetivo: (n: NuevoObjetivo) => void;
 }) {
   const op: Opciones = { libresCumplen: datos.prefs.libresCumplen };
   const { habitos, historiales: hs } = datos;
@@ -54,6 +56,7 @@ export default function Cierre({ datos, hoy, cierre, volver, irARevision }: {
       {periodo === "anio" && <Anio {...{ datos, anio: +inicio.slice(0, 4), hoy, op, filas }} />}
 
       <Votos datos={datos} a={inicio} b={fin > hoy ? hoy : fin} />
+      {periodo === "mes" && <ObjetivosDelMes datos={datos} hoy={hoy} mes={mesDe(inicio)} abrir={abrirObjetivo} nuevo={nuevoObjetivo} />}
 
       <h3 className="titulo-g">¿Cómo fue {periodo === "semana" ? "tu semana" : periodo === "mes" ? "tu mes" : "tu año"}? <span className="chico">opcional</span></h3>
       <NotaCierre clave={claveNota} inicial={datos.notas.get(claveNota) ?? ""} />
@@ -104,7 +107,8 @@ function Semana({ datos, inicio, fin, hoy, filas }: { datos: Datos; inicio: stri
 
 function Mes({ datos, inicio, fin, hoy, op, filas, antA, antB }: { datos: Datos; inicio: string; fin: string; hoy: string; op: Opciones; filas: Filas; antA: string; antB: string }) {
   const semanas: string[] = [];
-  for (let l = lunes(inicio); l <= (fin > hoy ? hoy : fin); l = sumarDias(l, 7)) semanas.push(l);
+  // Solo semanas con al menos un día terminado (hoy todavía está en curso).
+  for (let l = lunes(inicio); l <= (fin >= hoy ? sumarDias(hoy, -1) : fin); l = sumarDias(l, 7)) semanas.push(l);
   const pcts = semanas.map((l) => cumplimiento(datos.habitos, datos.historiales, l, sumarDias(l, 6), hoy, op).porcentaje);
   const anio = inicio.slice(0, 4);
   const meses = Array.from({ length: 12 }, (_, i) => `${anio}-${String(i + 1).padStart(2, "0")}`).filter((m) => m <= mesDe(hoy));
@@ -183,6 +187,20 @@ function Votos({ datos, a, b }: { datos: Datos; a: string; b: string }) {
           <div className="chico">{redondeo(x.votos)} votos{x.detalle.length ? ` · ${x.detalle.map((d) => `${d.h.nombre} ${redondeo(d.votos)}`).join(", ")}` : ""}</div>
         </div>
       ))}
+    </>
+  );
+}
+
+/** Cierre de mes: los objetivos del mes y del año, y (opcional) agregar para el mes siguiente. */
+function ObjetivosDelMes({ datos, hoy, mes, abrir, nuevo }: { datos: Datos; hoy: string; mes: string; abrir: (id: string) => void; nuevo: (n: NuevoObjetivo) => void }) {
+  const lista = datos.objetivos.filter((o) => (o.periodo === "mes" && mesDe(o.desde) === mes) || (o.periodo === "anio" && o.desde.slice(0, 4) === mes.slice(0, 4)) || (o.periodo === "periodo" && o.desde <= `${mes}-31` && o.hasta >= `${mes}-01`));
+  const siguiente = sumarMeses(mes, 1);
+  return (
+    <>
+      <h3 className="titulo-g">Tus objetivos</h3>
+      {lista.length ? lista.map((o) => <TarjetaObjetivo key={o.id} o={o} datos={datos} hoy={hoy} abrir={() => abrir(o.id)} />) : <p className="chico">No tenías objetivos para este mes.</p>}
+      <button className="boton2" style={{ borderStyle: "dashed", color: "var(--acento)" }} onClick={() => nuevo({ periodo: "mes", mes: siguiente })}>+ Agregar objetivo para {nombreMes(siguiente)}</button>
+      <div className="chico" style={{ marginTop: 4 }}>Opcional: si no agregás ninguno, el cierre termina igual.</div>
     </>
   );
 }
