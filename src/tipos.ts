@@ -65,6 +65,15 @@ export interface Registro {
   valor: Valor;
   variante?: string;
   cantidad?: number;
+  /** Día libre puesto por una pausa: no se guarda en la base, se calcula al leer. */
+  porPausa?: boolean;
+}
+
+/** Modo pausa: vacaciones, enfermedad. Todos los hábitos quedan como día libre en el rango. */
+export interface Pausa {
+  desde: Dia;
+  hasta: Dia;
+  motivo: string;
 }
 
 export interface Identidad {

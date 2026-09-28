@@ -3,7 +3,7 @@ import type { Datos } from "../datos";
 import type { Preferencias } from "../db";
 import { alternarLibre, cambiarValor, elegirVariante, tocar } from "../lib/acciones";
 import {
-  diasSinSeguidos, esperado, fallaAnterior, hechoEnSemana, metaSemana, patronDelDia, sumar, unidad, valorEn,
+  diasSinSeguidos, esperado, fallaAnterior, pausaActiva, hechoEnSemana, metaSemana, patronDelDia, sumar, unidad, valorEn,
   type Historial, type Opciones,
 } from "../lib/calculos";
 import { DIAS_CORTOS, DIAS_LARGOS, DIAS_PLURAL, INICIALES, diaSemana, diasEntre, fechaCorta, mesDe, primerDia, sumarDias } from "../lib/fecha";
@@ -108,8 +108,10 @@ function Subtitulo({ h, hist, d, op, patrones }: { h: Habito; hist: Historial; d
     partes.push(`${diasSinSeguidos(hist, d)} días sin`);
     if (d > inicio) partes.push(`mes: ${Math.round(sumar(h, hist, inicio, sumarDias(d, -1), op, true) * 10) / 10} de ${diasEntre(inicio, d)}`);
   } else if (unidad(h, d) === "semana") partes.push(`semana ${Math.round(hechoEnSemana(h, hist, d, op))} de ${metaSemana(h, d)}`);
-  const p = patrones ? patronDelDia(h, hist, d) : null;
-  const falla = fallaAnterior(h, hist, d, op);
+  // En pausa no se muestran patrones ni "ayer no": ese día no cuenta.
+  const enPausa = !!hist.get(d)?.porPausa;
+  const p = patrones && !enPausa ? patronDelDia(h, hist, d) : null;
+  const falla = enPausa ? null : fallaAnterior(h, hist, d, op);
   return (
     <>
       {partes.length > 0 && <div className="chico">{partes.join(" · ")}</div>}
@@ -125,7 +127,8 @@ function VistaHoy({ datos, hoy, op, selector, marcar, mantener, abrirDetalle, nu
   const d = sumarDias(hoy, desfase);
   const { habitos, historiales, prefs } = datos;
   const hist = (h: Habito) => historiales.get(h.id)!;
-  const hechos = habitos.filter((h) => valorEn(hist(h), d));
+  // Los días libres puestos por una pausa no cuentan como hechos: el hábito sigue en la lista para poder marcarlo.
+  const hechos = habitos.filter((h) => { const r = hist(h).get(d); return r && !r.porPausa; });
   const pendientes = habitos.filter((h) => !hechos.includes(h));
   const cumplidos = pendientes.filter((h) => unidad(h, d) === "semana" && hechoEnSemana(h, hist(h), d, op) >= metaSemana(h, d));
   const resto = pendientes.filter((h) => !cumplidos.includes(h));
@@ -151,6 +154,10 @@ function VistaHoy({ datos, hoy, op, selector, marcar, mantener, abrirDetalle, nu
         <button className="icono-btn" aria-label="Nuevo hábito" onClick={nuevo}><Icono n="add" /></button>
       </Barra>
       {selector}
+      {(() => {
+        const pausa = pausaActiva(prefs.pausas, d);
+        return pausa && <div className="aviso amarillo"><Icono n="pause_circle" /> En pausa hasta el {fechaCorta(pausa.hasta)}{pausa.motivo ? ` · ${pausa.motivo}` : ""}. Nada cuenta como fallo.</div>;
+      })()}
       {desfase < 0 && (
         <div className="aviso acento"><Icono n="history" /> Editando un día pasado · <button style={{ textDecoration: "underline" }} onClick={() => setDesfase(0)}>volver a hoy</button></div>
       )}

@@ -1,6 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, PREFERENCIAS, type Decision, type Preferencias } from "./db";
-import type { Historial } from "./lib/calculos";
+import { aplicarPausas, type Historial } from "./lib/calculos";
+import { hoy as calcularHoy } from "./lib/fecha";
 import type { Habito, Identidad, Objetivo } from "./tipos";
 import { leerPreferencias } from "./lib/acciones";
 
@@ -33,5 +34,6 @@ export function useDatos(): Datos {
     m.set(r.dia, r);
   }
   for (const h of habitos ?? []) if (!historiales.has(h.id)) historiales.set(h.id, new Map());
+  if (prefs?.pausas.length && todos) aplicarPausas(todos, historiales, prefs.pausas, calcularHoy());
   return { habitos: habitos ?? [], archivados: todos?.filter((h) => h.archivado) ?? [], identidades: identidades ?? [], notas: new Map((notas ?? []).map((n) => [n.clave, n.texto])), decisiones: decisiones ?? [], objetivos: objetivos ?? [], historiales, prefs: prefs ?? PREFERENCIAS, cargando: !habitos || !registros || !prefs };
 }

@@ -1,6 +1,6 @@
 # Hábitos
 
-App personal de hábitos para Android que reemplaza a Loop Habit Tracker. Mismo enfoque que `../Gastos`: React + TypeScript + Vite, datos locales en el teléfono con Dexie (IndexedDB), textos y nombres de código en español. Para Android se empaqueta con Capacitor (pendiente: requiere Android Studio instalado).
+App personal de hábitos para Android que reemplaza a Loop Habit Tracker. Mismo enfoque que `../Gastos`: React + TypeScript + Vite, datos locales en el teléfono con Dexie (IndexedDB), textos y nombres de código en español. Para Android se empaqueta con Capacitor (proyecto en `android/`; compilar el APK requiere Android Studio).
 
 ## Especificación
 
@@ -26,6 +26,8 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 - `src/lib/objetivos.ts`: progreso, estado y ritmo de los objetivos.
 - `src/lib/calculos.ts`: toda la lógica de frecuencias, progreso, patrones y "nunca fallar dos veces". Funciones puras, con pruebas.
 - `src/lib/importarLoop.ts`: lee la copia de seguridad de Loop (.db, SQLite con sql.js; trae recordatorios) o el ZIP "Exportar datos (CSV)". Los dos pasan por la misma conversión.
+- `src/lib/recordatorios.ts`: qué avisos programar (puro, con pruebas). `src/lib/notificaciones.ts`: los programa en Android.
+- `src/lib/copia.ts`: copia de seguridad propia (armar, leer, restaurar, automática).
 - `src/lib/acciones.ts`: escrituras (marcar, día libre, importar, preferencias).
 - `src/pantallas/`: una por pantalla.
 
@@ -34,6 +36,8 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 - `npm run dev`: servidor de desarrollo.
 - `npm test`: pruebas (Vitest).
 - `npm run build`: chequeo de tipos y compilación.
+- `npm run android`: compila y copia la app al proyecto de Android (`npx cap sync android`).
+- `npm run apk`: además arma el APK de prueba en `android/app/build/outputs/apk/debug/` (requiere Android Studio / JDK).
 
 ## Etapas
 
@@ -41,4 +45,4 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 2. Hecha: detalle del hábito (resumen, Progreso, Patrones, Historial), crear, editar (frecuencia por versiones), archivar, eliminar y Archivados.
 3. Hecha: Revisión (semana, mes, año, sugerencias con botones, patrones, identidades), cierres de semana, mes y año con notas, e Identidades en Ajustes.
 4. Hecha: Objetivos (pestaña propia; por mes, año o período; sí/no, cantidad, veces de hábitos o racha; ritmo necesario, detalle con gráfico, mover fecha y ajustar meta) y objetivos en el cierre de mes.
-5. Recordatorios inteligentes, modo pausa, copia de seguridad automática y empaquetado Android con Capacitor.
+5. Hecha en código: modo pausa (días libres calculados, no guardados), copia de seguridad propia (automática semanal en Documentos/Habitos, exportar e importar), recordatorios inteligentes (se programan 14 días; no avisan lo hecho, en pausa ni días que no tocan; botones Hecho y En 1 hora; avisos de cierre), proyecto Android con ícono y permisos. Falta: compilar y probar en el teléfono.

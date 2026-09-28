@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Habito, Identidad, Objetivo, Registro } from "./tipos";
+import type { Habito, Identidad, Objetivo, Pausa, Registro } from "./tipos";
 
 export interface Ajuste { clave: string; valor: unknown }
 /** Nota de un cierre: clave "semana:AAAA-MM-DD" (lunes), "mes:AAAA-MM" o "anio:AAAA". */
@@ -42,5 +42,11 @@ export interface Preferencias {
   maximoSugerencias: number;
   /** Id de hábito → fecha hasta la que no se vuelve a sugerir ("Dejar así"). */
   descartadas: Record<string, string>;
+  /** Pausas (vigentes y pasadas: las pasadas siguen contando como días libres). */
+  pausas: Pausa[];
+  /** Recordatorios: no avisar lo ya hecho; avisos de cierre de semana (domingo 20:00) y de mes (último día 20:00). */
+  avisoNoSiHecho: boolean;
+  avisoCierreSemana: boolean;
+  avisoCierreMes: boolean;
 }
-export const PREFERENCIAS: Preferencias = { agrupar: "momento", libresCumplen: true, patrones: true, invertirSemana: false, sugerencias: true, umbralSugerencias: 30, maximoSugerencias: 3, descartadas: {} };
+export const PREFERENCIAS: Preferencias = { agrupar: "momento", libresCumplen: true, patrones: true, invertirSemana: false, sugerencias: true, umbralSugerencias: 30, maximoSugerencias: 3, descartadas: {}, pausas: [], avisoNoSiHecho: true, avisoCierreSemana: true, avisoCierreMes: true };

@@ -1,4 +1,4 @@
-import type { Dia, Frecuencia, Habito, Registro, Valor } from "../tipos";
+import type { Dia, Frecuencia, Habito, Pausa, Registro, Valor } from "../tipos";
 import { DIAS_CORTOS, diaSemana, dias, lunes, mesDe, primerDia, sumarDias, sumarMeses, ultimoDia } from "./fecha";
 
 /** Registros de un hábito, por día. */
@@ -178,3 +178,23 @@ export function retomar(h: Habito, hist: Historial, d: Dia, op: Opciones) {
   }
   return fallos ? { fallos, vueltas, porcentaje: Math.round((100 * vueltas) / fallos) } : null;
 }
+
+/**
+ * Modo pausa: agrega un día libre en cada día de las pausas (hasta hoy) que no tenga registro.
+ * Lo marcado a mano durante una pausa se respeta.
+ */
+export function aplicarPausas(habitos: Habito[], historiales: Map<string, Historial>, pausas: Pausa[], hoy: Dia) {
+  for (const p of pausas) {
+    const fin = p.hasta < hoy ? p.hasta : hoy;
+    for (const d of dias(p.desde, fin)) {
+      for (const h of habitos) {
+        if (d < h.frecuencias[0].desde) continue;
+        let m = historiales.get(h.id);
+        if (!m) historiales.set(h.id, (m = new Map()));
+        if (!m.has(d)) m.set(d, { habito: h.id, dia: d, valor: "libre", porPausa: true });
+      }
+    }
+  }
+}
+
+export const pausaActiva = (pausas: Pausa[], hoy: Dia) => pausas.find((p) => p.desde <= hoy && hoy <= p.hasta) ?? null;

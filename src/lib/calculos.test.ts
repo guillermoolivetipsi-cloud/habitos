@@ -73,3 +73,16 @@ describe("hábito nuevo", () => {
     expect(esperado(h, "2026-09-01", "2026-09-26")).toBe(7);
   });
 });
+
+describe("modo pausa", () => {
+  it("pone día libre donde no hay registro y respeta lo marcado", async () => {
+    const { aplicarPausas, sumar: s } = await import("./calculos");
+    const h = habito();
+    const hs = new Map([["h", hist([["2026-09-10", "hecho"]])]]);
+    aplicarPausas([h], hs, [{ desde: "2026-09-10", hasta: "2026-09-20", motivo: "Vacaciones" }], "2026-09-12");
+    const m = hs.get("h")!;
+    expect([m.get("2026-09-10")?.valor, m.get("2026-09-11")?.valor, m.get("2026-09-12")?.porPausa, m.has("2026-09-13")]).toEqual(["hecho", "libre", true, false]);
+    // Con días libres cumplidos, la pausa no baja el porcentaje.
+    expect(s(h, m, "2026-09-10", "2026-09-12", op)).toBe(3);
+  });
+});
