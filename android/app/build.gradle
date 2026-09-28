@@ -8,8 +8,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // En GitHub, cada compilación sube el número de versión para que el teléfono acepte la actualización.
-        versionCode (System.getenv("NUMERO_VERSION") ?: "1").toInteger()
-        versionName "1.0." + (System.getenv("NUMERO_VERSION") ?: "0")
+        versionCode = Integer.parseInt(System.getenv("NUMERO_VERSION") ?: "1")
+        versionName = "1.0." + (System.getenv("NUMERO_VERSION") ?: "0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -21,16 +21,18 @@ android {
     // Si la firma cambia, el teléfono no deja actualizar sin desinstalar, y desinstalar borra los datos.
     signingConfigs {
         release {
-            storeFile file(System.getenv("FIRMA_ARCHIVO") ?: "../../firma/habitos.p12")
-            storePassword System.getenv("FIRMA_CONTRASENA") ?: (file("../../firma/contrasena.txt").exists() ? file("../../firma/contrasena.txt").text.trim() : "")
-            storeType "pkcs12"
-            keyAlias "habitos"
-            keyPassword System.getenv("FIRMA_CONTRASENA") ?: (file("../../firma/contrasena.txt").exists() ? file("../../firma/contrasena.txt").text.trim() : "")
+            def contrasenaLocal = file("../../firma/contrasena.txt")
+            def contrasena = System.getenv("FIRMA_CONTRASENA") ?: (contrasenaLocal.exists() ? contrasenaLocal.text.trim() : "")
+            storeFile = file(System.getenv("FIRMA_ARCHIVO") ?: "../../firma/habitos.p12")
+            storePassword = contrasena
+            storeType = "pkcs12"
+            keyAlias = "habitos"
+            keyPassword = contrasena
         }
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            signingConfig = signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
