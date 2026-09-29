@@ -66,10 +66,11 @@ export function Circulo({ h, valor, variante, chico, esHoy, soloTilde, etiqueta,
 
 function marcaTilde(color: string, v: Valor | undefined, variante: string | undefined, esHoy: boolean) {
   if (v === "hecho" && variante) return <b style={{ fontWeight: 500, fontSize: 15, color }}>{variante[0]}</b>;
-  if (v === "hecho") return <Icono n="check" estilo={{ color, fontSize: 22 }} />;
-  if (v === "minima") return <Icono n="check" estilo={{ color, fontSize: 22, opacity: 0.65 }} />;
-  if (v === "libre") return <Icono n="check" estilo={{ color, fontSize: 22, opacity: 0.38 }} />;
-  return <span className={`punto-vacio${esHoy ? " hoy" : ""}`} />;
+  if (v === "hecho") return <Icono n="check" estilo={{ color, fontSize: 20 }} />;
+  if (v === "minima") return <Icono n="check" estilo={{ color, fontSize: 20, opacity: 0.65 }} />;
+  if (v === "libre") return <Icono n="check" estilo={{ color, fontSize: 20, opacity: 0.38 }} />;
+  // Sin marcar: una ✕ gris, como Loop, para que la grilla se vea pareja.
+  return <span className={`material-symbols-outlined cruz-vacia${esHoy ? " hoy" : ""}`} aria-hidden="true">close</span>;
 }
 
 export const Interruptor = ({ on, etiqueta, alCambiar }: { on: boolean; etiqueta: string; alCambiar: () => void }) => (

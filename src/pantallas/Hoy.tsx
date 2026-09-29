@@ -202,8 +202,6 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
   const lista = habitos.filter((h) => h.tipo !== "medir");
   const ds = Array.from({ length: DIAS_VISTA }, (_, i) => sumarDias(fin, -i));
   const orden = prefs.invertirSemana ? [...ds].reverse() : ds;
-  let hecho = 0, meta = 0;
-  for (const h of lista) { hecho += sumar(h, historiales.get(h.id)!, inicio, fin, op); meta += esperado(h, inicio, fin); }
   // Anillo de puntuación de cada hábito (a hoy), como en Loop.
   const punt = useMemo(() => new Map(lista.map((h) => [h.id, puntuaciones(h, historiales.get(h.id)!, hoy, hoy).get(hoy) ?? 0])), [historiales, hoy, lista.length]);
   const anteriores = () => setDesfase((d) => d - 1);
@@ -229,11 +227,11 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
         <button className="icono-btn" aria-label="Días siguientes" disabled={desfase >= 0} onClick={siguientes}><Icono n="chevron_right" /></button>
       </Barra>
       {selector}
-      <div className="chico" style={{ textAlign: "right", marginBottom: 4 }}>{Math.round(hecho)} de {Math.round(meta)} · últimos 7 días</div>
       <div className="semana" onTouchStart={(e) => { toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
         onTouchEnd={(e) => alSoltar(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}>
         <span />
         {orden.map((d) => <span key={d} className={`cab${d === hoy ? " hoy" : ""}`}>{DIAS_CORTOS[diaSemana(d)].toUpperCase()}<br />{+d.slice(8)}</span>)}
+        <span className="cab" title="Últimos 7 días">7 D</span>
         {grs.map(([nombre, hs]) => (
           <div className="fila-s" key={nombre}>
             {grs.length > 1 && <div className="grupo g" style={{ margin: "10px 0 0" }}>{nombre}</div>}
@@ -242,15 +240,12 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
               const x = sumar(h, hist, inicio, fin, op);
               const m = Math.round(esperado(h, inicio, fin));
               const cumple = h.tipo !== "evitar" && x >= m;
-              const progreso = h.tipo === "evitar" ? `${Math.round(sumar(h, hist, inicio, fin, op, true) * 10) / 10} de 7 días sin` : `${Math.round(x)} de ${m}`;
+              const progreso = h.tipo === "evitar" ? `${Math.round(sumar(h, hist, inicio, fin, op, true) * 10) / 10}d` : `${Math.round(x)}/${m}`;
               return (
                 <div className="fila-s" key={h.id}>
                   <button className="n" onClick={() => abrirDetalle(h)}>
                     <AnilloChico valor={punt.get(h.id) ?? 0} color={h.color} />
-                    <span className="t">
-                      <span className="nombre" style={{ color: h.color }}>{h.nombre}</span>
-                      <span className="p" style={cumple ? { color: h.color } : undefined}>{progreso}</span>
-                    </span>
+                    <span className="nombre" style={{ color: h.color }}>{h.nombre}</span>
                   </button>
                   {orden.map((d) => (
                     <span className="c" key={d}>
@@ -260,13 +255,14 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
                       )}
                     </span>
                   ))}
+                  <span className="p" style={cumple ? { color: h.color } : undefined}>{progreso}</span>
                 </div>
               );
             })}
           </div>
         ))}
       </div>
-      <p className="chico" style={{ marginTop: 12 }}>Hoy es la {prefs.invertirSemana ? "última" : "primera"} columna. El número debajo de cada hábito cuenta los últimos 7 días. Deslizá para ver días anteriores. Tocá para marcar o desmarcar; mantené presionado para día libre.</p>
+      <p className="chico" style={{ marginTop: 12 }}>Hoy es la {prefs.invertirSemana ? "última" : "primera"} columna. La última columna cuenta los últimos 7 días. Deslizá para ver días anteriores. Tocá para marcar o desmarcar; mantené presionado para día libre.</p>
     </>
   );
 }
