@@ -1,5 +1,6 @@
 import type { Dia, Habito, Objetivo } from "../tipos";
 import { diasSinSeguidos, rachaDias, sumar, type Historial } from "./calculos";
+import { contarTareas } from "./tareas";
 import { diasEntre, fechaCorta, lunes, sumarDias, sumarMeses, mesDe, primerDia, ultimoDia } from "./fecha";
 
 export type Estado = "futuro" | "activo" | "cumplido" | "terminado";
@@ -51,10 +52,13 @@ export function progreso(o: Objetivo, habitos: Habito[], hs: Map<string, Histori
     const hist = hs.get(o.habitos[0]) ?? new Map();
     valor = h ? (h.tipo === "evitar" ? diasSinSeguidos(hist, corte) : rachaDias(h, hist, corte)) : 0;
   } else if (o.medida === "cantidad") valor = o.manual;
+  else if (o.medida === "tareas") valor = contarTareas(o.tareas).hechas;
   else valor = o.logrado ? 1 : 0;
-  const meta = o.medida === "siNo" ? 1 : Math.max(1, o.meta);
-  const fraccion = Math.min(1, valor / meta);
-  const llego = valor >= meta;
+  const totalTareas = contarTareas(o.tareas).total;
+  const meta = o.medida === "siNo" ? 1 : o.medida === "tareas" ? totalTareas : Math.max(1, o.meta);
+  const fraccion = meta ? Math.min(1, valor / meta) : 0;
+  // Sin tareas cargadas todavía no hay nada cumplido.
+  const llego = meta > 0 && valor >= meta;
   const estado: Estado = hoy < o.desde ? "futuro" : o.medida === "siNo" ? (o.logrado != null ? "cumplido" : hoy > o.hasta ? "terminado" : "activo") : llego ? "cumplido" : hoy > o.hasta ? "terminado" : "activo";
   const logrado = o.medida === "siNo" ? o.logrado : estado === "cumplido" ? true : estado === "terminado" ? false : null;
   const esperadoHoy = o.medida === "veces" || o.medida === "cantidad" ? transcurridos / total : null;
@@ -62,7 +66,11 @@ export function progreso(o: Objetivo, habitos: Habito[], hs: Map<string, Histori
   let texto = "";
   if (estado === "futuro") texto = `Empieza el ${fechaCorta(o.desde)}`;
   else if (o.medida === "siNo") texto = o.logrado == null ? (estado === "terminado" ? "Terminó: ¿lo lograste?" : `Termina el ${fechaCorta(o.hasta)}`) : o.logrado ? "Logrado" : "No logrado";
-  else if (llego) texto = "Meta cumplida";
+  else if (o.medida === "tareas") {
+    const faltan = meta - valor;
+    texto = !meta ? "Todavía no tiene tareas" : llego ? "Todas las tareas hechas" : estado === "terminado" ? `Terminó con ${valor} de ${meta} tareas`
+      : `${faltan === 1 ? "Falta 1 tarea" : `Faltan ${faltan} tareas`} · hasta el ${fechaCorta(o.hasta)}`;
+  } else if (llego) texto = "Meta cumplida";
   else if (estado === "terminado") texto = `Terminó en ${coma(valor)} de ${meta}`;
   else if (o.medida === "veces") {
     const faltan = meta - valor;

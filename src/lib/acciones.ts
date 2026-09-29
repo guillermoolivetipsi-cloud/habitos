@@ -1,7 +1,8 @@
 import { db, PREFERENCIAS, type Preferencias } from "../db";
-import type { Dia, Habito, Identidad, Objetivo, Valor } from "../tipos";
+import type { Dia, Habito, Identidad, Objetivo, Tarea, Valor } from "../tipos";
 import type { AccionSugerida } from "./revision";
 import type { ResultadoImportacion } from "./importarLoop";
+import * as tareas from "./tareas";
 
 /** Tocar el círculo: marca hecho; si ya tenía algo, lo desmarca. */
 export async function tocar(h: Habito, dia: Dia): Promise<"marcado" | "desmarcado"> {
@@ -142,3 +143,36 @@ export const sumarManual = async (id: string, n: number) => {
   if (o) await db.objetivos.update(id, { manual: Math.max(0, o.manual + n) });
 };
 export const responderObjetivo = (id: string, logrado: boolean) => db.objetivos.update(id, { logrado });
+
+/* ---------- Tareas de un objetivo ---------- */
+
+/** Cambia la lista de tareas de un objetivo leyendo la versión guardada (no la que tenía la pantalla). */
+async function cambiarTareas(id: string, f: (ts: Tarea[]) => Tarea[]) {
+  await db.transaction("rw", db.objetivos, async () => {
+    const o = await db.objetivos.get(id);
+    if (o) await db.objetivos.update(id, { tareas: f(o.tareas ?? []) });
+  });
+}
+export const agregarTarea = (objetivo: string, t: Tarea) => cambiarTareas(objetivo, (ts) => tareas.agregar(ts, t));
+export const guardarTarea = (objetivo: string, t: Tarea) => cambiarTareas(objetivo, (ts) => ts.map((x) => (x.id === t.id ? t : x)));
+export const alternarTarea = (objetivo: string, id: string) => cambiarTareas(objetivo, (ts) => tareas.alternar(ts, id));
+export const reordenarTareas = (objetivo: string, idsPendientes: string[]) => cambiarTareas(objetivo, (ts) => tareas.reordenar(ts, idsPendientes));
+/** Borra y devuelve cómo deshacerlo. */
+export async function borrarTarea(objetivo: string, id: string): Promise<() => Promise<void>> {
+  let quitada: ReturnType<typeof tareas.quitar> | null = null;
+  await cambiarTareas(objetivo, (ts) => { quitada = tareas.quitar(ts, id); return quitada.tareas; });
+  return async () => {
+    const q = quitada as ReturnType<typeof tareas.quitar> | null;
+    if (q?.tarea) await cambiarTareas(objetivo, (ts) => tareas.reponer(ts, q.tarea!, q.indice));
+  };
+}
+/** Cierre de mes: pasar las pendientes al mes siguiente, o dejarlas como no hechas. */
+export async function pasarPendientes(id: string) {
+  await db.transaction("rw", db.objetivos, async () => {
+    const o = await db.objetivos.get(id);
+    if (!o) return;
+    const { original, destino } = tareas.pasarPendientes(o, await db.objetivos.toArray(), () => `o-${Date.now().toString(36)}`);
+    await db.objetivos.bulkPut([original, destino]);
+  });
+}
+export const dejarPendientes = (id: string) => db.objetivos.update(id, { pendientesResueltas: true });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Datos } from "../datos";
-import { guardarNota } from "../lib/acciones";
+import { dejarPendientes, guardarNota, pasarPendientes } from "../lib/acciones";
+import { conPendientes } from "../lib/tareas";
 import type { Opciones } from "../lib/calculos";
 import { INICIALES, MESES_CORTOS, fechaCorta, lunes, mesDe, nombreMes, sumarDias, sumarMeses } from "../lib/fecha";
 import { cambios, cumplimiento, hechosPorDia, porHabito, rangoMes, votos } from "../lib/revision";
@@ -195,10 +196,24 @@ function Votos({ datos, a, b }: { datos: Datos; a: string; b: string }) {
 function ObjetivosDelMes({ datos, hoy, mes, abrir, nuevo }: { datos: Datos; hoy: string; mes: string; abrir: (id: string) => void; nuevo: (n: NuevoObjetivo) => void }) {
   const lista = datos.objetivos.filter((o) => (o.periodo === "mes" && mesDe(o.desde) === mes) || (o.periodo === "anio" && o.desde.slice(0, 4) === mes.slice(0, 4)) || (o.periodo === "periodo" && o.desde <= `${mes}-31` && o.hasta >= `${mes}-01`));
   const siguiente = sumarMeses(mes, 1);
+  const pendientes = conPendientes(datos.objetivos, mes);
   return (
     <>
       <h3 className="titulo-g">Tus objetivos</h3>
       {lista.length ? lista.map((o) => <TarjetaObjetivo key={o.id} o={o} datos={datos} hoy={hoy} abrir={() => abrir(o.id)} />) : <p className="chico">No tenías objetivos para este mes.</p>}
+      {pendientes.map((o) => {
+        const sin = (o.tareas ?? []).filter((t) => !t.hecha);
+        return (
+          <div key={o.id} className="tarjeta">
+            <div>{o.nombre}: {sin.length === 1 ? "quedó 1 tarea sin hacer" : `quedaron ${sin.length} tareas sin hacer`}</div>
+            <ul className="chico" style={{ margin: "6px 0 0", paddingLeft: 18 }}>{sin.map((t) => <li key={t.id}>{t.texto}</li>)}</ul>
+            <div className="chips" style={{ marginTop: 10 }}>
+              <button className="accion principal" onClick={() => pasarPendientes(o.id)}>Pasar a {nombreMes(siguiente)}</button>
+              <button className="accion" onClick={() => dejarPendientes(o.id)}>Dejarlas como no hechas</button>
+            </div>
+          </div>
+        );
+      })}
       <button className="boton2" style={{ borderStyle: "dashed", color: "var(--acento)" }} onClick={() => nuevo({ periodo: "mes", mes: siguiente })}>+ Agregar objetivo para {nombreMes(siguiente)}</button>
       <div className="chico" style={{ marginTop: 4 }}>Opcional: si no agregás ninguno, el cierre termina igual.</div>
     </>

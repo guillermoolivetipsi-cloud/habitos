@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import type { Habito, Valor } from "../tipos";
 
 export const Icono = ({ n, estilo }: { n: string; estilo?: CSSProperties }) => (
@@ -81,7 +81,23 @@ export const Barra = ({ titulo, children, izquierda }: { titulo: ReactNode; chil
 );
 
 /** Hoja que sube desde abajo. Tocar afuera la cierra. */
+/** Hojas abiertas, la de más arriba al final: el botón atrás de Android cierra esa antes que la pantalla. */
+const hojasAbiertas: { cerrar: () => void }[] = [];
+export function cerrarHojaDeArriba(): boolean {
+  const h = hojasAbiertas[hojasAbiertas.length - 1];
+  if (!h) return false;
+  h.cerrar();
+  return true;
+}
+
 export function Hoja({ children, cerrar }: { children: ReactNode; cerrar: () => void }) {
+  const ultima = useRef(cerrar);
+  ultima.current = cerrar;
+  useEffect(() => {
+    const h = { cerrar: () => ultima.current() };
+    hojasAbiertas.push(h);
+    return () => { const i = hojasAbiertas.indexOf(h); if (i >= 0) hojasAbiertas.splice(i, 1); };
+  }, []);
   return (
     <div className="velo" onClick={cerrar}>
       <div className="hoja" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>

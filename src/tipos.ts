@@ -83,7 +83,16 @@ export interface Identidad {
 }
 
 export type PeriodoObjetivo = "mes" | "anio" | "periodo";
-export type MedidaObjetivo = "siNo" | "cantidad" | "veces" | "racha";
+export type MedidaObjetivo = "siNo" | "cantidad" | "veces" | "racha" | "tareas";
+
+/** Paso de un objetivo: hecho o no hecho. El orden del arreglo es el orden en pantalla (las hechas se muestran al final). */
+export interface Tarea {
+  id: string;
+  texto: string;
+  hecha: boolean;
+  fecha: Dia | null;
+  nota: string;
+}
 
 export interface Objetivo {
   id: string;
@@ -98,4 +107,8 @@ export interface Objetivo {
   manual: number;
   logrado: boolean | null;
   identidad: string | null;
+  /** Cualquier objetivo puede tener tareas; si la medida es "tareas", el avance sale de ellas. */
+  tareas?: Tarea[];
+  /** El cierre de mes ya preguntó qué hacer con las tareas que quedaron sin hacer. */
+  pendientesResueltas?: boolean;
 }

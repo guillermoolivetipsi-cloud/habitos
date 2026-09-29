@@ -24,6 +24,7 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 - `src/lib/estadisticas.ts`: puntuación (misma fórmula que Loop, verificada contra sus valores), rachas, resúmenes y series para los gráficos.
 - `src/lib/revision.ts`: cumplimiento global, sugerencias, patrones, votos por identidad y cambios entre períodos. Un período en curso se compara contra el anterior a la misma altura.
 - `src/lib/objetivos.ts`: progreso, estado y ritmo de los objetivos.
+- `src/lib/tareas.ts`: tareas de un objetivo (hecha o no hecha; fecha y nota opcionales): orden, marcar, deshacer, pasar pendientes al mes siguiente. Pantalla en `src/pantallas/Tareas.tsx`.
 - `src/lib/calculos.ts`: toda la lógica de frecuencias, progreso, patrones y "nunca fallar dos veces". Funciones puras, con pruebas.
 - `src/lib/importarLoop.ts`: lee la copia de seguridad de Loop (.db, SQLite con sql.js; trae recordatorios) o el ZIP "Exportar datos (CSV)". Los dos pasan por la misma conversión.
 - `src/lib/recordatorios.ts`: qué avisos programar (puro, con pruebas). `src/lib/notificaciones.ts`: los programa en Android.
@@ -46,5 +47,5 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 1. Hecha: estructura, modelo, importación desde Loop (copia .db o CSV), Hoy y Semana, Ajustes básicos.
 2. Hecha: detalle del hábito (resumen, Progreso, Patrones, Historial), crear, editar (frecuencia por versiones), archivar, eliminar y Archivados.
 3. Hecha: Revisión (semana, mes, año, sugerencias con botones, patrones, identidades), cierres de semana, mes y año con notas, e Identidades en Ajustes.
-4. Hecha: Objetivos (pestaña propia; por mes, año o período; sí/no, cantidad, veces de hábitos o racha; ritmo necesario, detalle con gráfico, mover fecha y ajustar meta) y objetivos en el cierre de mes.
+4. Hecha: Objetivos (pestaña propia; por mes, año o período; sí/no, cantidad, veces de hábitos o racha; ritmo necesario, detalle con gráfico, mover fecha y ajustar meta) y objetivos en el cierre de mes. Después: tareas en cualquier objetivo y "Tareas" como forma de medir; el cierre de mes pregunta qué hacer con las pendientes.
 5. Hecha en código: modo pausa (días libres calculados, no guardados), copia de seguridad propia (automática semanal en Documentos/Habitos, exportar e importar), recordatorios inteligentes (se programan 14 días; no avisan lo hecho, en pausa ni días que no tocan; botones Hecho y En 1 hora; avisos de cierre), proyecto Android con ícono y permisos. Falta: compilar y probar en el teléfono.

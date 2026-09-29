@@ -15,7 +15,7 @@ import Hoy from "./pantallas/Hoy";
 import Objetivos, { DetalleObjetivo, FormObjetivo, type NuevoObjetivo } from "./pantallas/Objetivos";
 import Revision, { type Cierre as TipoCierre } from "./pantallas/Revision";
 import type { Habito } from "./tipos";
-import { Icono } from "./ui/piezas";
+import { cerrarHojaDeArriba, Icono } from "./ui/piezas";
 
 type Encima = { tipo: "detalle"; id: string } | { tipo: "editor"; id?: string } | { tipo: "cierre"; cierre: TipoCierre } | { tipo: "objetivo"; id: string } | { tipo: "formObjetivo"; nuevo: NuevoObjetivo; id?: string };
 const claveEncima = (e?: Encima) => (!e ? "" : e.tipo === "cierre" ? `cierre${e.cierre.periodo}${e.cierre.inicio}` : e.tipo === "formObjetivo" ? `form${e.id ?? e.nuevo.mes ?? ""}` : `${e.tipo}${e.id ?? ""}`);
@@ -45,13 +45,14 @@ export default function App() {
     copiaHecha.current = true;
     copiaAutomatica(hoy);
   }, [datos.cargando, hoy]);
-  // Botón "atrás" de Android: cierra la pantalla de arriba; si no hay, sale de la subpantalla o minimiza la app.
+  // Botón "atrás" de Android: cierra la hoja abierta; si no hay, la pantalla de arriba; si no hay, sale de la subpantalla o minimiza la app.
   const estadoAtras = useRef({ pila, subAjustes, pestana });
   estadoAtras.current = { pila, subAjustes, pestana };
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const l = CapApp.addListener("backButton", () => {
       const e = estadoAtras.current;
+      if (cerrarHojaDeArriba()) return;
       if (e.pila.length) setPila((p) => p.slice(0, -1));
       else if (e.subAjustes) setSubAjustes(null);
       else if (e.pestana !== "hoy") setPestana("hoy");

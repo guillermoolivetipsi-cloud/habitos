@@ -3,12 +3,14 @@ import type { Datos } from "../datos";
 import { borrarObjetivo, guardarObjetivo, responderObjetivo, sumarManual } from "../lib/acciones";
 import { MESES_CORTOS, diasEntre, fechaCorta, mesDe, nombreMes, sumarDias, sumarMeses } from "../lib/fecha";
 import { avancePorMes, progreso, rangoObjetivo } from "../lib/objetivos";
+import { contarTareas, proximaTarea } from "../lib/tareas";
 import type { MedidaObjetivo, Objetivo, PeriodoObjetivo } from "../tipos";
 import { Lineas, redondeo } from "../ui/Graficos";
 import { Barra, Hoja, Icono } from "../ui/piezas";
+import { FechaTarea, ListaTareas } from "./Tareas";
 
 const mayus = (t: string) => t[0].toUpperCase() + t.slice(1);
-const MEDIDAS: [MedidaObjetivo, string][] = [["siNo", "Sí / no"], ["cantidad", "Cantidad"], ["veces", "Veces de un hábito"], ["racha", "Racha"]];
+const MEDIDAS: [MedidaObjetivo, string][] = [["siNo", "Sí / no"], ["cantidad", "Cantidad"], ["veces", "Veces de un hábito"], ["racha", "Racha"], ["tareas", "Tareas"]];
 
 export type NuevoObjetivo = { periodo: PeriodoObjetivo; mes?: string };
 
@@ -21,11 +23,13 @@ function colorDe(o: Objetivo, datos: Datos) {
 export function TarjetaObjetivo({ o, datos, hoy, abrir }: { o: Objetivo; datos: Datos; hoy: string; abrir?: () => void }) {
   const p = progreso(o, [...datos.habitos, ...datos.archivados], datos.historiales, hoy);
   const color = colorDe(o, datos);
+  const tareas = contarTareas(o.tareas);
+  const proxima = proximaTarea(o.tareas);
   return (
     <div className="tarjeta" role={abrir ? "button" : undefined} onClick={abrir} style={abrir ? { cursor: "pointer" } : undefined}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <span>{o.nombre}{o.medida === "siNo" ? <span className="etiqueta">sí / no</span> : o.medida === "cantidad" ? <span className="etiqueta">manual</span> : null}</span>
-        {o.medida !== "siNo" && <span style={{ fontVariantNumeric: "tabular-nums" }}>{redondeo(p.valor)}<span className="chico"> / {o.meta}</span></span>}
+        <span>{o.nombre}{o.medida === "siNo" ? <span className="etiqueta">sí / no</span> : o.medida === "cantidad" ? <span className="etiqueta">manual</span> : o.medida === "tareas" ? <span className="etiqueta">tareas</span> : null}</span>
+        {o.medida !== "siNo" && (o.medida !== "tareas" || tareas.total > 0) && <span style={{ fontVariantNumeric: "tabular-nums" }}>{redondeo(p.valor)}<span className="chico"> / {o.medida === "tareas" ? tareas.total : o.meta}</span></span>}
       </div>
       {o.descripcion && <div className="chico" style={{ marginTop: 3 }}>{o.descripcion}</div>}
       {o.medida !== "siNo" && (
@@ -34,7 +38,10 @@ export function TarjetaObjetivo({ o, datos, hoy, abrir }: { o: Objetivo; datos: 
           {p.esperadoHoy != null && p.estado === "activo" && <u className="marca-hoy" style={{ left: `${p.esperadoHoy * 100}%` }} />}
         </div>
       )}
-      <div className="chico" style={{ color: p.estado === "cumplido" ? "var(--acento)" : undefined }}>{p.texto}</div>
+      <div className="chico" style={{ color: p.estado === "cumplido" ? "var(--acento)" : undefined }}>{p.texto}{o.medida !== "tareas" && tareas.total > 0 ? ` · ${tareas.hechas} de ${tareas.total} tareas` : ""}</div>
+      {proxima && p.estado !== "terminado" && (
+        <div className="tarea-proxima"><Icono n="radio_button_unchecked" /><span className="t">{proxima.texto}</span><FechaTarea t={proxima} hoy={hoy} /></div>
+      )}
       <div className="chips" style={{ marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
         {o.medida === "cantidad" && p.estado !== "futuro" && <button className="chip" onClick={() => sumarManual(o.id, 1)}>+1</button>}
         {o.medida === "siNo" && o.logrado == null && p.estado !== "futuro" && (
@@ -56,7 +63,7 @@ export default function Objetivos({ datos, hoy, abrir, nuevo }: { datos: Datos; 
   const terminados = todos.filter((o) => !vigentes.includes(o));
   const meses = [...new Set(vigentes.filter((o) => o.periodo === "mes").map((o) => mesDe(o.desde)))].sort();
   const anios = [...new Set(vigentes.filter((o) => o.periodo === "anio").map((o) => o.desde.slice(0, 4)))].sort();
-  const resto = (a: string, b: string) => (a > hoy ? `empieza el ${fechaCorta(a)}` : b < hoy ? "terminó" : `termina en ${diasEntre(hoy, b)} días`);
+  const resto = (a: string, b: string) => (a > hoy ? `empieza el ${fechaCorta(a)}` : b < hoy ? "terminó" : (diasEntre(hoy, b) === 0 ? "termina hoy" : diasEntre(hoy, b) === 1 ? "termina mañana" : `termina en ${diasEntre(hoy, b)} días`));
   const secciones: [string, string, Objetivo[]][] = [
     ...meses.map((m) => [`${mayus(nombreMes(m))} ${m.slice(0, 4)}`, resto(`${m}-01`, sumarDias(sumarMeses(m, 1) + "-01", -1)), vigentes.filter((o) => o.periodo === "mes" && mesDe(o.desde) === m)] as [string, string, Objetivo[]]),
     ...anios.map((y) => [y, resto(`${y}-01-01`, `${y}-12-31`), vigentes.filter((o) => o.periodo === "anio" && o.desde.startsWith(y))] as [string, string, Objetivo[]]),
@@ -96,7 +103,7 @@ export default function Objetivos({ datos, hoy, abrir, nuevo }: { datos: Datos; 
   );
 }
 
-export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: Objetivo; datos: Datos; hoy: string; volver: () => void; editar: () => void; avisar: (c: React.ReactNode) => void }) {
+export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: Objetivo; datos: Datos; hoy: string; volver: () => void; editar: () => void; avisar: (c: React.ReactNode, ms?: number) => void }) {
   const [hoja, setHoja] = useState<null | "fecha" | "meta" | "borrar">(null);
   const habs = [...datos.habitos, ...datos.archivados];
   const p = progreso(o, habs, datos.historiales, hoy);
@@ -111,12 +118,12 @@ export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: 
       {o.descripcion && <p style={{ color: "var(--tx2)", fontSize: 13, margin: "0 0 8px" }}>{o.descripcion}</p>}
       <div className="chico">
         {o.periodo === "mes" ? `Objetivo de ${nombreMes(mesDe(o.desde))}` : o.periodo === "anio" ? `Objetivo de ${o.desde.slice(0, 4)}` : `Del ${fechaCorta(o.desde)} al ${fechaCorta(o.hasta)} ${o.hasta.slice(0, 4)}`}
-        {vinculados.length ? ` · suma: ${vinculados.join(", ")}` : " · sin hábito vinculado"}
+        {vinculados.length ? ` · suma: ${vinculados.join(", ")}` : o.medida === "tareas" ? "" : " · sin hábito vinculado"}
         {identidad ? ` · ${identidad.frase.toLowerCase()}` : ""}
       </div>
-      {o.medida !== "siNo" && (
+      {o.medida !== "siNo" && (o.medida !== "tareas" || !!o.tareas?.length) && (
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 12 }}>
-          <span className="grande">{redondeo(p.valor)}</span><span className="chico">de {o.meta} · {Math.round(p.fraccion * 100)}%</span>
+          <span className="grande">{redondeo(p.valor)}</span><span className="chico">de {o.medida === "tareas" ? `${contarTareas(o.tareas).total} tareas` : o.meta} · {Math.round(p.fraccion * 100)}%</span>
         </div>
       )}
       <div className="chico" style={{ color: p.estado === "cumplido" ? "var(--acento)" : undefined }}>{p.texto}</div>
@@ -143,12 +150,13 @@ export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: 
           <button className={`chip${o.logrado === false ? " activo" : ""}`} onClick={() => responderObjetivo(o.id, false)}>No lo logré</button>
         </div>
       )}
+      <ListaTareas o={o} color={colorDe(o, datos)} hoy={hoy} avisar={avisar} />
       {p.estado === "activo" && o.medida !== "siNo" && (
         <>
           <h3 className="titulo-g">Si no vas a llegar</h3>
           <div className="chips">
             <button className="chip" onClick={() => setHoja("fecha")}>Mover fecha</button>
-            <button className="chip" onClick={() => setHoja("meta")}>Ajustar meta</button>
+            {o.medida !== "tareas" && <button className="chip" onClick={() => setHoja("meta")}>Ajustar meta</button>}
             <button className="chip" onClick={volver}>Dejar así</button>
           </div>
         </>
@@ -160,7 +168,7 @@ export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: 
       {hoja === "borrar" && (
         <Hoja cerrar={() => setHoja(null)}>
           <div style={{ fontSize: 16 }}>¿Eliminar {o.nombre}?</div>
-          <div className="chico" style={{ margin: "6px 0" }}>No se puede deshacer. Los hábitos vinculados no se tocan.</div>
+          <div className="chico" style={{ margin: "6px 0" }}>No se puede deshacer.{o.tareas?.length ? ` Se eliminan también sus ${o.tareas.length === 1 ? "tarea" : `${o.tareas.length} tareas`}.` : ""} Los hábitos vinculados no se tocan.</div>
           <button className="boton" style={{ background: "var(--mal)" }} onClick={async () => { await borrarObjetivo(o.id); avisar("Objetivo eliminado"); volver(); }}>Eliminar</button>
           <button className="boton2" onClick={() => setHoja(null)}>Cancelar</button>
         </Hoja>
@@ -199,13 +207,14 @@ export function FormObjetivo({ datos, hoy, inicial, existente, volver, avisar }:
   const guardar = async () => {
     if (!nombre.trim()) return setError("Escribí un nombre para el objetivo.");
     if ((medida === "veces" || medida === "racha") && !habitos.length) return setError("Elegí al menos un hábito.");
-    if (medida !== "siNo" && !(Number(meta) >= 1)) return setError("La meta tiene que ser 1 o más.");
+    if (medida !== "siNo" && medida !== "tareas" && !(Number(meta) >= 1)) return setError("La meta tiene que ser 1 o más.");
     if (periodo === "periodo" && (!desde || !hasta || hasta < desde)) return setError("Revisá las fechas del período.");
     const [d, h] = rangoObjetivo(periodo, { mes, anio, desde, hasta });
     await guardarObjetivo({
       id: existente?.id ?? `o-${Date.now().toString(36)}`, nombre: nombre.trim(), descripcion: descripcion.trim(), periodo, desde: d, hasta: h,
-      medida, meta: medida === "siNo" ? 1 : Number(meta), habitos: medida === "veces" || medida === "racha" ? habitos : [],
+      medida, meta: medida === "siNo" || medida === "tareas" ? 1 : Number(meta), habitos: medida === "veces" || medida === "racha" ? habitos : [],
       manual: existente?.manual ?? 0, logrado: existente?.logrado ?? null, identidad,
+      tareas: existente?.tareas ?? [], pendientesResueltas: existente?.pendientesResueltas,
     });
     avisar(existente ? "Objetivo guardado" : "Objetivo creado");
     volver();
@@ -250,10 +259,10 @@ export function FormObjetivo({ datos, hoy, inicial, existente, volver, avisar }:
         <label>¿Cómo se mide?</label>
         <div className="chips">{MEDIDAS.map(([k, l]) => <button key={k} className={`chip${medida === k ? " activo" : ""}`} onClick={() => { setMedida(k); if (k === "racha") setHabitos(habitos.slice(0, 1)); }}>{l}</button>)}</div>
         <div className="chico" style={{ marginTop: 6 }}>
-          {medida === "siNo" ? "Al terminar, marcás si lo lograste." : medida === "cantidad" ? "Lo actualizás a mano con +1." : medida === "veces" ? "Avanza solo con lo que marcás en los hábitos elegidos." : "Días seguidos del hábito elegido (en Evitar, días sin)."}
+          {medida === "siNo" ? "Al terminar, marcás si lo lograste." : medida === "cantidad" ? "Lo actualizás a mano con +1." : medida === "veces" ? "Avanza solo con lo que marcás en los hábitos elegidos." : medida === "tareas" ? "Avanza con las tareas que marcás hechas. Las cargás en el objetivo." : "Días seguidos del hábito elegido (en Evitar, días sin)."}
         </div>
       </div>
-      {medida !== "siNo" && <div className="campo"><label htmlFor="o-meta">Meta</label><input id="o-meta" type="number" min={1} value={meta} onChange={(e) => setMeta(e.target.value)} /></div>}
+      {medida !== "siNo" && medida !== "tareas" && <div className="campo"><label htmlFor="o-meta">Meta</label><input id="o-meta" type="number" min={1} value={meta} onChange={(e) => setMeta(e.target.value)} /></div>}
       {(medida === "veces" || medida === "racha") && (
         <div className="campo">
           <label>{medida === "racha" ? "Hábito" : "Hábitos que suman"}</label>
