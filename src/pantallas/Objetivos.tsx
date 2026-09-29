@@ -19,38 +19,73 @@ function colorDe(o: Objetivo, datos: Datos) {
   return h?.color ?? datos.identidades.find((i) => i.id === o.identidad)?.color ?? "#69F0AE";
 }
 
-/** Tarjeta de un objetivo: barra de avance, marca de dónde deberías estar hoy y ritmo. */
+/** Días que quedan, o si todavía no empezó / ya terminó. */
+function plazo(o: Objetivo, hoy: string) {
+  if (hoy < o.desde) return `Empieza el ${fechaCorta(o.desde)}`;
+  if (hoy > o.hasta) return `Terminó el ${fechaCorta(o.hasta)}`;
+  const n = diasEntre(hoy, o.hasta);
+  return n === 0 ? "Termina hoy" : n === 1 ? "Queda 1 día · hasta mañana" : `Quedan ${n} días · hasta el ${fechaCorta(o.hasta)}`;
+}
+
+/** Lo que va dentro del anillo: 2/4, 17/20, Sí. */
+function centroAnillo(o: Objetivo, valor: number) {
+  if (o.medida === "siNo") return o.logrado ? "Sí" : o.logrado === false ? "No" : "—";
+  const meta = o.medida === "tareas" ? contarTareas(o.tareas).total : o.meta;
+  return `${redondeo(valor)}/${meta}`;
+}
+const SUB_ANILLO: Partial<Record<Objetivo["medida"], string>> = { tareas: "tareas", veces: "veces", racha: "días" };
+
+/** Anillo de avance. La marca amarilla es dónde deberías estar hoy para llegar a tiempo. */
+export function AnilloObjetivo({ fraccion, esperado, color, tam, grosor, texto, sub }: { fraccion: number; esperado?: number | null; color: string; tam: number; grosor: number; texto: string; sub?: string }) {
+  const m = tam / 2, r = (tam - grosor) / 2 - 1, c = 2 * Math.PI * r;
+  const letra = tam * (texto.length > 5 ? 0.2 : 0.26);
+  const ang = esperado != null ? esperado * 2 * Math.PI - Math.PI / 2 : 0;
+  return (
+    <svg width={tam} height={tam} viewBox={`0 0 ${tam} ${tam}`} role="img" aria-label={`${texto}${sub ? ` ${sub}` : ""}`} style={{ flex: "none" }}>
+      <circle cx={m} cy={m} r={r} fill="none" stroke="#242424" strokeWidth={grosor} />
+      {fraccion > 0 && <circle cx={m} cy={m} r={r} fill="none" stroke={color} strokeWidth={grosor} strokeLinecap="round" strokeDasharray={`${Math.max(0.001, fraccion) * c} ${c}`} transform={`rotate(-90 ${m} ${m})`} />}
+      {esperado != null && esperado > 0 && esperado < 1 && (
+        <line x1={m + (r - grosor * 0.9) * Math.cos(ang)} y1={m + (r - grosor * 0.9) * Math.sin(ang)} x2={m + (r + grosor * 0.9) * Math.cos(ang)} y2={m + (r + grosor * 0.9) * Math.sin(ang)} stroke="var(--meta)" strokeWidth={2} strokeLinecap="round" />
+      )}
+      <text x={m} y={sub ? m - tam * 0.04 : m} textAnchor="middle" dominantBaseline="central" fill="#e8e8e8" fontSize={letra}>{texto}</text>
+      {sub && <text x={m} y={m + tam * 0.17} textAnchor="middle" dominantBaseline="central" fill="#8a8a8a" fontSize={tam * 0.12}>{sub}</text>}
+    </svg>
+  );
+}
+
+/** Tarjeta de un objetivo: anillo con el avance, días que quedan y la próxima tarea. */
 export function TarjetaObjetivo({ o, datos, hoy, abrir }: { o: Objetivo; datos: Datos; hoy: string; abrir?: () => void }) {
   const p = progreso(o, [...datos.habitos, ...datos.archivados], datos.historiales, hoy);
   const color = colorDe(o, datos);
   const tareas = contarTareas(o.tareas);
   const proxima = proximaTarea(o.tareas);
+  // Segunda línea: el ritmo o el resultado. En los de tareas, mientras estén en curso, el anillo ya lo dice.
+  const detalle = o.medida === "tareas" && p.estado === "activo" && tareas.total > 0 ? null
+    : `${p.texto}${o.medida !== "tareas" && tareas.total > 0 ? ` · ${tareas.hechas} de ${tareas.total} tareas` : ""}`;
   return (
-    <div className="tarjeta" role={abrir ? "button" : undefined} onClick={abrir} style={abrir ? { cursor: "pointer" } : undefined}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <span>{o.nombre}{o.medida === "siNo" ? <span className="etiqueta">sí / no</span> : o.medida === "cantidad" ? <span className="etiqueta">manual</span> : o.medida === "tareas" ? <span className="etiqueta">tareas</span> : null}</span>
-        {o.medida !== "siNo" && (o.medida !== "tareas" || tareas.total > 0) && <span style={{ fontVariantNumeric: "tabular-nums" }}>{redondeo(p.valor)}<span className="chico"> / {o.medida === "tareas" ? tareas.total : o.meta}</span></span>}
+    <div className="tarjeta obj" role={abrir ? "button" : undefined} onClick={abrir} style={abrir ? { cursor: "pointer" } : undefined}>
+      <div className="obj-fila">
+        <AnilloObjetivo fraccion={p.fraccion} esperado={p.estado === "activo" ? p.esperadoHoy : null} color={color} tam={48} grosor={5} texto={centroAnillo(o, p.valor)} />
+        <div style={{ minWidth: 0 }}>
+          <div className="obj-nombre">{o.nombre}</div>
+          <div className="chico">{plazo(o, hoy)}</div>
+          {detalle && <div className="chico" style={{ color: p.estado === "cumplido" ? "var(--acento)" : undefined, marginTop: 1 }}>{detalle}</div>}
+        </div>
       </div>
-      {o.descripcion && <div className="chico" style={{ marginTop: 3 }}>{o.descripcion}</div>}
-      {o.medida !== "siNo" && (
-        <div className="progreso" style={{ margin: "8px 0 5px" }}>
-          <i style={{ width: `${p.fraccion * 100}%`, background: color }} />
-          {p.esperadoHoy != null && p.estado === "activo" && <u className="marca-hoy" style={{ left: `${p.esperadoHoy * 100}%` }} />}
+      {proxima && p.estado !== "terminado" && (
+        <div className="obj-prox"><Icono n="radio_button_unchecked" /><span className="et">Próxima:</span><span className="t">{proxima.texto}</span><FechaTarea t={proxima} hoy={hoy} /></div>
+      )}
+      {((o.medida === "cantidad" && p.estado !== "futuro") || (o.medida === "siNo" && o.logrado == null && p.estado !== "futuro")) && (
+        <div className="chips" style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+          {o.medida === "cantidad" && <button className="chip" onClick={() => sumarManual(o.id, 1)}>+1</button>}
+          {o.medida === "siNo" && (
+            <>
+              <button className="chip activo" onClick={() => responderObjetivo(o.id, true)}>Logrado</button>
+              {p.estado === "terminado" && <button className="chip" onClick={() => responderObjetivo(o.id, false)}>No lo logré</button>}
+            </>
+          )}
         </div>
       )}
-      <div className="chico" style={{ color: p.estado === "cumplido" ? "var(--acento)" : undefined }}>{p.texto}{o.medida !== "tareas" && tareas.total > 0 ? ` · ${tareas.hechas} de ${tareas.total} tareas` : ""}</div>
-      {proxima && p.estado !== "terminado" && (
-        <div className="tarea-proxima"><Icono n="radio_button_unchecked" /><span className="t">{proxima.texto}</span><FechaTarea t={proxima} hoy={hoy} /></div>
-      )}
-      <div className="chips" style={{ marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
-        {o.medida === "cantidad" && p.estado !== "futuro" && <button className="chip" onClick={() => sumarManual(o.id, 1)}>+1</button>}
-        {o.medida === "siNo" && o.logrado == null && p.estado !== "futuro" && (
-          <>
-            <button className="chip activo" onClick={() => responderObjetivo(o.id, true)}>Logrado</button>
-            {p.estado === "terminado" && <button className="chip" onClick={() => responderObjetivo(o.id, false)}>No lo logré</button>}
-          </>
-        )}
-      </div>
     </div>
   );
 }
@@ -61,14 +96,12 @@ export default function Objetivos({ datos, hoy, abrir, nuevo }: { datos: Datos; 
   const est = (o: Objetivo) => progreso(o, habs, datos.historiales, hoy).estado;
   const vigentes = todos.filter((o) => o.hasta >= hoy || (o.medida === "siNo" && o.logrado == null));
   const terminados = todos.filter((o) => !vigentes.includes(o));
-  const meses = [...new Set(vigentes.filter((o) => o.periodo === "mes").map((o) => mesDe(o.desde)))].sort();
-  const anios = [...new Set(vigentes.filter((o) => o.periodo === "anio").map((o) => o.desde.slice(0, 4)))].sort();
-  const resto = (a: string, b: string) => (a > hoy ? `empieza el ${fechaCorta(a)}` : b < hoy ? "terminó" : (diasEntre(hoy, b) === 0 ? "termina hoy" : diasEntre(hoy, b) === 1 ? "termina mañana" : `termina en ${diasEntre(hoy, b)} días`));
-  const secciones: [string, string, Objetivo[]][] = [
-    ...meses.map((m) => [`${mayus(nombreMes(m))} ${m.slice(0, 4)}`, resto(`${m}-01`, sumarDias(sumarMeses(m, 1) + "-01", -1)), vigentes.filter((o) => o.periodo === "mes" && mesDe(o.desde) === m)] as [string, string, Objetivo[]]),
-    ...anios.map((y) => [y, resto(`${y}-01-01`, `${y}-12-31`), vigentes.filter((o) => o.periodo === "anio" && o.desde.startsWith(y))] as [string, string, Objetivo[]]),
-    ["Por período", "", vigentes.filter((o) => o.periodo === "periodo")],
-  ];
+  // Agrupados por fecha de fin: "Hasta el 31 dic".
+  const fines = [...new Set(vigentes.map((o) => o.hasta))].sort();
+  const pie = (f: string) => (f < hoy ? "terminó" : diasEntre(hoy, f) === 0 ? "termina hoy" : diasEntre(hoy, f) === 1 ? "termina mañana" : `quedan ${diasEntre(hoy, f)} días`);
+  const secciones: [string, string, Objetivo[]][] = fines.map((f) => [
+    `Hasta el ${fechaCorta(f)}${f.slice(0, 4) !== hoy.slice(0, 4) ? ` ${f.slice(0, 4)}` : ""}`, pie(f), vigentes.filter((o) => o.hasta === f),
+  ]);
   return (
     <>
       <Barra titulo="Objetivos"><button className="icono-btn" aria-label="Nuevo objetivo" onClick={() => nuevo({ periodo: "mes", mes: mesDe(hoy) })}><Icono n="add" /></button></Barra>
@@ -97,36 +130,45 @@ export default function Objetivos({ datos, hoy, abrir, nuevo }: { datos: Datos; 
         </section>
       )}
       {vigentes.some((o) => o.medida === "veces" || o.medida === "cantidad") && (
-        <p className="chico" style={{ marginTop: 12 }}><i style={{ display: "inline-block", width: 8, height: 2, background: "var(--meta)", verticalAlign: 3, marginRight: 4 }} />= dónde deberías estar hoy para llegar a tiempo.</p>
+        <p className="chico" style={{ marginTop: 12 }}><i style={{ display: "inline-block", width: 2, height: 9, background: "var(--meta)", verticalAlign: -1, marginRight: 5, borderRadius: 1 }} />La marca amarilla del anillo es dónde deberías estar hoy para llegar a tiempo.</p>
       )}
     </>
   );
 }
 
 export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: Objetivo; datos: Datos; hoy: string; volver: () => void; editar: () => void; avisar: (c: React.ReactNode, ms?: number) => void }) {
-  const [hoja, setHoja] = useState<null | "fecha" | "meta" | "borrar">(null);
+  const [hoja, setHoja] = useState<null | "opciones" | "fecha" | "meta" | "borrar">(null);
   const habs = [...datos.habitos, ...datos.archivados];
   const p = progreso(o, habs, datos.historiales, hoy);
   const vinculados = o.habitos.map((id) => habs.find((h) => h.id === id)?.nombre).filter(Boolean);
   const identidad = datos.identidades.find((i) => i.id === o.identidad);
   const avance = o.medida === "veces" ? avancePorMes(o, habs, datos.historiales, hoy) : null;
+  const tareas = contarTareas(o.tareas);
+  const principal = o.medida === "tareas"
+    ? (!tareas.total ? "Todavía no tiene tareas" : p.estado === "cumplido" ? "Cumplido" : p.estado === "terminado" ? p.texto : tareas.total - tareas.hechas === 1 ? "Falta 1 tarea" : `Faltan ${tareas.total - tareas.hechas} tareas`)
+    : p.texto;
+  const tiempo = Math.round(Math.min(1, Math.max(0, (diasEntre(o.desde, hoy) + 1) / (diasEntre(o.desde, o.hasta) + 1))) * 100);
   return (
     <>
       <Barra titulo={o.nombre} izquierda={<button className="icono-btn" aria-label="Volver" onClick={volver}><Icono n="arrow_back" /></button>}>
         <button className="icono-btn" aria-label="Editar" onClick={editar}><Icono n="edit" /></button>
+        <button className="icono-btn" aria-label="Más opciones" onClick={() => setHoja("opciones")}><Icono n="more_vert" /></button>
       </Barra>
       {o.descripcion && <p style={{ color: "var(--tx2)", fontSize: 13, margin: "0 0 8px" }}>{o.descripcion}</p>}
-      <div className="chico">
-        {o.periodo === "mes" ? `Objetivo de ${nombreMes(mesDe(o.desde))}` : o.periodo === "anio" ? `Objetivo de ${o.desde.slice(0, 4)}` : `Del ${fechaCorta(o.desde)} al ${fechaCorta(o.hasta)} ${o.hasta.slice(0, 4)}`}
-        {vinculados.length ? ` · suma: ${vinculados.join(", ")}` : o.medida === "tareas" ? "" : " · sin hábito vinculado"}
-        {identidad ? ` · ${identidad.frase.toLowerCase()}` : ""}
-      </div>
-      {o.medida !== "siNo" && (o.medida !== "tareas" || !!o.tareas?.length) && (
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 12 }}>
-          <span className="grande">{redondeo(p.valor)}</span><span className="chico">de {o.medida === "tareas" ? `${contarTareas(o.tareas).total} tareas` : o.meta} · {Math.round(p.fraccion * 100)}%</span>
+      <div className="obj-cabeza">
+        <AnilloObjetivo fraccion={p.fraccion} esperado={p.estado === "activo" ? p.esperadoHoy : null} color={colorDe(o, datos)} tam={84} grosor={7}
+          texto={centroAnillo(o, p.valor)} sub={o.medida === "siNo" ? undefined : SUB_ANILLO[o.medida]} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 15, color: p.estado === "cumplido" ? "var(--acento)" : undefined }}>{principal}</div>
+          {o.medida !== "siNo" && p.estado !== "futuro" && <div className="chico" style={{ marginTop: 2 }}>{Math.round(p.fraccion * 100)}% hecho · {tiempo}% del tiempo</div>}
         </div>
-      )}
-      <div className="chico" style={{ color: p.estado === "cumplido" ? "var(--acento)" : undefined }}>{p.texto}</div>
+      </div>
+      <div className="pildoras">
+        <span className="pildora"><Icono n="date_range" />{fechaCorta(o.desde)} – {fechaCorta(o.hasta)}{o.hasta.slice(0, 4) !== hoy.slice(0, 4) ? ` ${o.hasta.slice(0, 4)}` : ""}</span>
+        <span className="pildora"><Icono n="hourglass_bottom" />{plazo(o, hoy).split(" · ")[0]}</span>
+        {vinculados.length > 0 && <span className="pildora"><Icono n="link" />{vinculados.join(", ")}</span>}
+        {identidad && <span className="pildora"><Icono n="person" />{identidad.frase}</span>}
+      </div>
       {avance && (
         <>
           <h3 className="titulo-g">Avance contra el ritmo necesario</h3>
@@ -161,7 +203,16 @@ export function DetalleObjetivo({ o, datos, hoy, volver, editar, avisar }: { o: 
           </div>
         </>
       )}
-      <button className="boton2" style={{ marginTop: 24, color: "var(--mal)", borderColor: "#ff8a8055" }} onClick={() => setHoja("borrar")}>Eliminar objetivo</button>
+      {hoja === "opciones" && (
+        <Hoja cerrar={() => setHoja(null)}>
+          <div style={{ fontSize: 16, marginBottom: 4 }}>{o.nombre}</div>
+          <button className="item" onClick={() => { setHoja(null); editar(); }}><Icono n="edit" /><div className="t"><div>Editar</div></div></button>
+          {p.estado !== "cumplido" && <button className="item" onClick={() => setHoja("fecha")}><Icono n="event" /><div className="t"><div>Mover fecha</div><div className="chico">Hoy termina el {fechaCorta(o.hasta)}</div></div></button>}
+          <button className="item" style={{ color: "var(--mal)", border: 0 }} onClick={() => setHoja("borrar")}>
+            <Icono n="delete" /><div className="t"><div>Eliminar objetivo</div><div className="chico">{o.tareas?.length ? `También sus ${o.tareas.length === 1 ? "tarea" : `${o.tareas.length} tareas`}` : "No se puede deshacer"}</div></div>
+          </button>
+        </Hoja>
+      )}
 
       {hoja === "fecha" && <HojaValor titulo="Nueva fecha límite" tipo="date" inicial={o.hasta} min={hoy} cerrar={() => setHoja(null)} guardar={async (v) => { await guardarObjetivo({ ...o, hasta: v, periodo: "periodo" }); avisar(`Nuevo límite: ${fechaCorta(v)}`); }} />}
       {hoja === "meta" && <HojaValor titulo="Nueva meta" tipo="number" inicial={String(o.meta)} cerrar={() => setHoja(null)} guardar={async (v) => { await guardarObjetivo({ ...o, meta: Math.max(1, Number(v)) }); avisar(`Nueva meta: ${v}`); }} />}

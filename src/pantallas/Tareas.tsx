@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent } from "react";
 import { agregarTarea, alternarTarea, borrarTarea, guardarTarea, reordenarTareas } from "../lib/acciones";
 import { DIAS_CORTOS, diaSemana, fechaCorta, sumarDias } from "../lib/fecha";
-import { contarTareas, nuevoIdTarea, ordenadas } from "../lib/tareas";
+import { nuevoIdTarea, ordenadas } from "../lib/tareas";
 import type { Dia, Objetivo, Tarea } from "../tipos";
 import { Hoja, Icono } from "../ui/piezas";
 
@@ -23,48 +23,79 @@ export function FechaTarea({ t, hoy }: { t: Tarea; hoy: Dia }) {
 
 /**
  * Tareas de un objetivo. Tocar el círculo marca o desmarca; tocar el texto abre la hoja para editar o eliminar.
- * Las pendientes se reordenan manteniendo presionada la manija y arrastrando; las hechas quedan al final, tachadas.
+ * Las pendientes se reordenan manteniendo presionada la tarea y arrastrando; las hechas quedan al final, tachadas.
  */
 export function ListaTareas({ o, color, hoy, avisar }: { o: Objetivo; color: string; hoy: Dia; avisar: Avisar }) {
   const [hoja, setHoja] = useState<null | { tarea?: Tarea }>(null);
   const ts = ordenadas(o.tareas ?? []);
   const pend = ts.filter((t) => !t.hecha);
   const hechas = ts.filter((t) => t.hecha);
-  const { hechas: h, total } = contarTareas(o.tareas);
 
   // Arrastre: mientras dura, el orden de las pendientes vive acá; al soltar se guarda.
   const [orden, setOrden] = useState<string[] | null>(null);
   const [arrastrada, setArrastrada] = useState<string | null>(null);
   const ordenRef = useRef<string[] | null>(null);
+  const arrastradaRef = useRef<string | null>(null);
   const filas = useRef(new Map<string, HTMLDivElement>());
-  useEffect(() => { if (!arrastrada) { setOrden(null); ordenRef.current = null; } }, [o.tareas]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!arrastradaRef.current) { setOrden(null); ordenRef.current = null; } }, [o.tareas]);
   const vista = orden ? [...orden.map((id) => pend.find((t) => t.id === id)).filter((t): t is Tarea => !!t), ...pend.filter((t) => !orden.includes(t.id))] : pend;
 
-  const empezar = (e: PointerEvent<HTMLSpanElement>, id: string) => {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    ordenRef.current = pend.map((t) => t.id);
-    setOrden(ordenRef.current);
-    setArrastrada(id);
+  // Mantener presionado 400 ms sin mover el dedo empieza el arrastre; si el dedo se mueve antes, es scroll.
+  const presion = useRef<{ x: number; y: number; reloj: number } | null>(null);
+  const huboArrastre = useRef(false);
+  const bloquearScroll = useRef((e: TouchEvent) => e.preventDefault());
+  const terminarBloqueo = () => document.removeEventListener("touchmove", bloquearScroll.current);
+  useEffect(() => terminarBloqueo, []);
+
+  const apretar = (e: PointerEvent<HTMLDivElement>, id: string) => {
+    if (pend.length < 2 || (e.pointerType === "mouse" && e.button !== 0)) return;
+    huboArrastre.current = false;
+    const el = e.currentTarget, puntero = e.pointerId;
+    presion.current = {
+      x: e.clientX, y: e.clientY,
+      reloj: window.setTimeout(() => {
+        presion.current = null;
+        huboArrastre.current = true;
+        navigator.vibrate?.(15);
+        try { el.setPointerCapture(puntero); } catch { /* el puntero ya se soltó */ }
+        document.addEventListener("touchmove", bloquearScroll.current, { passive: false });
+        arrastradaRef.current = id;
+        ordenRef.current = pend.map((t) => t.id);
+        setOrden(ordenRef.current);
+        setArrastrada(id);
+      }, 400),
+    };
   };
-  const mover = (e: PointerEvent<HTMLSpanElement>) => {
-    const actual = ordenRef.current;
-    if (!arrastrada || !actual) return;
-    const otras = actual.filter((id) => id !== arrastrada);
+  const mover = (e: PointerEvent<HTMLDivElement>) => {
+    const p = presion.current;
+    if (p) {
+      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) { window.clearTimeout(p.reloj); presion.current = null; }
+      return;
+    }
+    const id = arrastradaRef.current, actual = ordenRef.current;
+    if (!id || !actual) return;
+    const otras = actual.filter((x) => x !== id);
     // La tarea va después de todas las filas cuya mitad quedó arriba del dedo.
-    const i = otras.filter((id) => { const r = filas.current.get(id)?.getBoundingClientRect(); return r && r.top + r.height / 2 < e.clientY; }).length;
-    const nuevo = [...otras.slice(0, i), arrastrada, ...otras.slice(i)];
+    const i = otras.filter((x) => { const r = filas.current.get(x)?.getBoundingClientRect(); return r && r.top + r.height / 2 < e.clientY; }).length;
+    const nuevo = [...otras.slice(0, i), id, ...otras.slice(i)];
     if (nuevo.join() !== actual.join()) { ordenRef.current = nuevo; setOrden(nuevo); }
   };
   const soltar = async () => {
-    const final = ordenRef.current;
+    if (presion.current) { window.clearTimeout(presion.current.reloj); presion.current = null; }
+    if (!arrastradaRef.current) return;
+    terminarBloqueo();
+    arrastradaRef.current = null;
     setArrastrada(null);
+    const final = ordenRef.current;
     if (!final || final.join() === pend.map((t) => t.id).join()) { ordenRef.current = null; setOrden(null); return; }
     await reordenarTareas(o.id, final);
   };
 
   const fila = (t: Tarea) => (
-    <div key={t.id} className={`tarea${t.hecha ? " hecha" : ""}${arrastrada === t.id ? " arrastrando" : ""}`} ref={(el) => { if (el) filas.current.set(t.id, el); else filas.current.delete(t.id); }}>
+    <div key={t.id} className={`tarea${t.hecha ? " hecha" : ""}${arrastrada === t.id ? " arrastrando" : ""}`} ref={(el) => { if (el) filas.current.set(t.id, el); else filas.current.delete(t.id); }}
+      onPointerDown={t.hecha ? undefined : (e) => apretar(e, t.id)} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}
+      onContextMenu={(e) => e.preventDefault()}
+      onClickCapture={(e) => { if (huboArrastre.current) { e.stopPropagation(); e.preventDefault(); huboArrastre.current = false; } }}>
       <button className="tarea-circulo" style={t.hecha ? { background: color, borderColor: color } : undefined} aria-pressed={t.hecha}
         aria-label={`${t.hecha ? "Desmarcar" : "Marcar hecha"}: ${t.texto}`} onClick={() => alternarTarea(o.id, t.id)}>
         {t.hecha && <Icono n="check" estilo={{ color: "#000", fontSize: 18 }} />}
@@ -74,20 +105,16 @@ export function ListaTareas({ o, color, hoy, avisar }: { o: Objetivo; color: str
         {t.nota && <span className="tarea-nota">{t.nota}</span>}
         <FechaTarea t={t} hoy={hoy} />
       </button>
-      {!t.hecha && pend.length > 1 && (
-        <span className="tarea-asa" aria-label="Arrastrar para reordenar" onPointerDown={(e) => empezar(e, t.id)} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
-          <Icono n="drag_indicator" />
-        </span>
-      )}
     </div>
   );
 
   return (
     <>
-      <h3 className="titulo-g" style={{ display: "flex", alignItems: "baseline" }}>Tareas{total > 0 && <span className="chico" style={{ marginLeft: "auto" }}>{h} de {total}</span>}</h3>
+      <h3 className="titulo-g">Tareas</h3>
       {vista.map(fila)}
       <button className="tarea-agregar" onClick={() => setHoja({})}><Icono n="add" />Agregar tarea</button>
       {hechas.map(fila)}
+      {pend.length > 1 && <p className="chico" style={{ marginTop: 8 }}>Para cambiar el orden, mantené presionada una tarea y arrastrala.</p>}
       {hoja && <HojaTarea o={o} tarea={hoja.tarea} hoy={hoy} cerrar={() => setHoja(null)} avisar={avisar} />}
     </>
   );
