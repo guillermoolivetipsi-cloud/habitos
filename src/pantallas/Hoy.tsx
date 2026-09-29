@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Datos } from "../datos";
 import type { Preferencias } from "../db";
 import { alternarLibre, cambiarValor, elegirVariante, tocar } from "../lib/acciones";
@@ -190,43 +190,68 @@ function VistaHoy({ datos, hoy, op, selector, marcar, mantener, abrirDetalle, nu
   );
 }
 
+/** Días a la vista en Semana: como Loop, pocos y anchos; los anteriores se ven deslizando o con las flechas. */
+const DIAS_VISTA = 5;
+
 function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle }: PropsVista) {
   const [desfase, setDesfase] = useState(0);
   const { habitos, historiales, prefs } = datos;
-  const fin = sumarDias(hoy, 7 * desfase);
+  const fin = sumarDias(hoy, DIAS_VISTA * desfase);
+  // El progreso sigue siendo de 7 días (una semana), aunque se vean 5.
   const inicio = sumarDias(fin, -6);
   const lista = habitos.filter((h) => h.tipo !== "medir");
-  const ds = [0, 1, 2, 3, 4, 5, 6].map((i) => sumarDias(fin, -i));
+  const ds = Array.from({ length: DIAS_VISTA }, (_, i) => sumarDias(fin, -i));
   const orden = prefs.invertirSemana ? [...ds].reverse() : ds;
   let hecho = 0, meta = 0;
   for (const h of lista) { hecho += sumar(h, historiales.get(h.id)!, inicio, fin, op); meta += esperado(h, inicio, fin); }
   // Anillo de puntuación de cada hábito (a hoy), como en Loop.
   const punt = useMemo(() => new Map(lista.map((h) => [h.id, puntuaciones(h, historiales.get(h.id)!, hoy, hoy).get(hoy) ?? 0])), [historiales, hoy, lista.length]);
+  const anteriores = () => setDesfase((d) => d - 1);
+  const siguientes = () => setDesfase((d) => Math.min(0, d + 1));
+  // Deslizar: los días anteriores están del lado contrario a hoy.
+  const toque = useRef<{ x: number; y: number } | null>(null);
+  const alSoltar = (x: number, y: number) => {
+    const t = toque.current;
+    toque.current = null;
+    if (!t) return;
+    const dx = x - t.x, dy = y - t.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const haciaAtras = prefs.invertirSemana ? dx > 0 : dx < 0;
+    if (haciaAtras) anteriores(); else siguientes();
+  };
+  const grs = grupos(lista, prefs).filter(([, x]) => x.length);
   return (
     <>
       <Barra
-        titulo={<span style={{ display: "block", textAlign: "center" }}>{desfase === 0 ? "Últimos 7 días" : `${fechaCorta(inicio)} – ${fechaCorta(fin)}`}</span>}
-        izquierda={<button className="icono-btn" aria-label="7 días anteriores" onClick={() => setDesfase(desfase - 1)}><Icono n="chevron_left" /></button>}
+        titulo={<span style={{ display: "block", textAlign: "center" }}>{desfase === 0 ? `Últimos ${DIAS_VISTA} días` : `${fechaCorta(ds[DIAS_VISTA - 1])} – ${fechaCorta(fin)}`}</span>}
+        izquierda={<button className="icono-btn" aria-label="Días anteriores" onClick={anteriores}><Icono n="chevron_left" /></button>}
       >
-        <button className="icono-btn" aria-label="7 días siguientes" disabled={desfase >= 0} onClick={() => setDesfase(desfase + 1)}><Icono n="chevron_right" /></button>
+        <button className="icono-btn" aria-label="Días siguientes" disabled={desfase >= 0} onClick={siguientes}><Icono n="chevron_right" /></button>
       </Barra>
       {selector}
-      <div className="chico" style={{ textAlign: "right", marginBottom: 4 }}>{Math.round(hecho)} de {Math.round(meta)}</div>
-      <div className="semana">
+      <div className="chico" style={{ textAlign: "right", marginBottom: 4 }}>{Math.round(hecho)} de {Math.round(meta)} · últimos 7 días</div>
+      <div className="semana" onTouchStart={(e) => { toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+        onTouchEnd={(e) => alSoltar(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}>
         <span />
         {orden.map((d) => <span key={d} className={`cab${d === hoy ? " hoy" : ""}`}>{DIAS_CORTOS[diaSemana(d)].toUpperCase()}<br />{+d.slice(8)}</span>)}
-        <span />
-        {grupos(lista, prefs).map(([nombre, hs]) => hs.length > 0 && (
+        {grs.map(([nombre, hs]) => (
           <div className="fila-s" key={nombre}>
-            {grupos(lista, prefs).filter(([, x]) => x.length).length > 1 && <div className="grupo g" style={{ margin: "10px 0 0" }}>{nombre}</div>}
+            {grs.length > 1 && <div className="grupo g" style={{ margin: "10px 0 0" }}>{nombre}</div>}
             {hs.map((h) => {
               const hist = historiales.get(h.id)!;
               const x = sumar(h, hist, inicio, fin, op);
               const m = Math.round(esperado(h, inicio, fin));
               const cumple = h.tipo !== "evitar" && x >= m;
+              const progreso = h.tipo === "evitar" ? `${Math.round(sumar(h, hist, inicio, fin, op, true) * 10) / 10} de 7 días sin` : `${Math.round(x)} de ${m}`;
               return (
                 <div className="fila-s" key={h.id}>
-                  <button className="n" style={{ color: h.color }} onClick={() => abrirDetalle(h)}><AnilloChico valor={punt.get(h.id) ?? 0} color={h.color} /><span>{h.nombre}</span></button>
+                  <button className="n" onClick={() => abrirDetalle(h)}>
+                    <AnilloChico valor={punt.get(h.id) ?? 0} color={h.color} />
+                    <span className="t">
+                      <span className="nombre" style={{ color: h.color }}>{h.nombre}</span>
+                      <span className="p" style={cumple ? { color: h.color } : undefined}>{progreso}</span>
+                    </span>
+                  </button>
                   {orden.map((d) => (
                     <span className="c" key={d}>
                       {d > hoy ? null : (
@@ -235,16 +260,13 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
                       )}
                     </span>
                   ))}
-                  <span className="p" style={cumple ? { color: h.color } : undefined}>
-                    {h.tipo === "evitar" ? `${Math.round(sumar(h, hist, inicio, fin, op, true) * 10) / 10}d` : `${Math.round(x)}/${m}`}
-                  </span>
                 </div>
               );
             })}
           </div>
         ))}
       </div>
-      <p className="chico" style={{ marginTop: 12 }}>Hoy es la primera columna. Tocá para marcar o desmarcar; mantené presionado para día libre.</p>
+      <p className="chico" style={{ marginTop: 12 }}>Hoy es la {prefs.invertirSemana ? "última" : "primera"} columna. El número debajo de cada hábito cuenta los últimos 7 días. Deslizá para ver días anteriores. Tocá para marcar o desmarcar; mantené presionado para día libre.</p>
     </>
   );
 }

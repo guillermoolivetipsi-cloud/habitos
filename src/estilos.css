@@ -72,15 +72,16 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 .circulo.hoy { box-shadow: 0 0 0 1.5px #ffffff22; }
 
 /* Vista Semana: 7 días, solo tilde, nombre en su color con anillo de puntuación, progreso a la derecha, sin líneas. */
-.semana { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 29px) 38px; align-items: center; }
-.semana .cab { font-size: 10.5px; letter-spacing: .3px; color: var(--mu); text-align: center; line-height: 1.25; padding-bottom: 6px; }
+.semana { display: grid; grid-template-columns: minmax(0, 1fr) repeat(5, 42px); align-items: center; }
+.semana .cab { font-size: 11px; letter-spacing: .4px; color: var(--mu); text-align: center; line-height: 1.3; padding-bottom: 6px; }
 .semana .cab.hoy { color: var(--tx); font-weight: 500; }
 .semana .fila-s { display: contents; }
-.semana .n { font-size: 15.5px; padding-right: 6px; text-align: left; height: 54px; display: flex; align-items: center; gap: 9px; min-width: 0; }
-.semana .n span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.semana .n { padding: 8px 6px 8px 0; text-align: left; min-height: 60px; display: flex; align-items: center; gap: 9px; min-width: 0; }
+.semana .n .t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.semana .n .nombre { font-size: 15.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.semana .n .p { font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
 .semana .n svg { flex: none; }
-.semana .c { height: 54px; display: flex; align-items: center; justify-content: center; }
-.semana .p { font-size: 12px; text-align: right; color: var(--dim); height: 54px; display: flex; align-items: center; justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.semana .c { height: 100%; min-height: 60px; display: flex; align-items: center; justify-content: center; }
 .semana .g { grid-column: 1 / -1; }
 .marca { width: 29px; height: 54px; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
 .punto-vacio { width: 5px; height: 5px; border-radius: 50%; background: #383838; display: inline-block; }
