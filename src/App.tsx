@@ -2,6 +2,7 @@ import { App as CapApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useDatos } from "./datos";
+import { buscarActualizacion, descargar, type Actualizacion } from "./lib/actualizacion";
 import { copiaAutomatica } from "./lib/copia";
 import { escucharAcciones, programarAvisos } from "./lib/notificaciones";
 import { planificarAvisos } from "./lib/recordatorios";
@@ -58,6 +59,16 @@ export default function App() {
     });
     return () => { l.then((x) => x.remove()); };
   }, []);
+  // Actualizaciones: al abrir la app y al volver a ella (como mucho cada 6 horas) se fija si hay una versión nueva.
+  const [nueva, setNueva] = useState<Actualizacion | null>(null);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let ultima = 0;
+    const revisar = () => { if (Date.now() - ultima > 6 * 3600_000) { ultima = Date.now(); buscarActualizacion().then(setNueva); } };
+    revisar();
+    const l = CapApp.addListener("appStateChange", (e) => { if (e.isActive) revisar(); });
+    return () => { l.then((x) => x.remove()); };
+  }, []);
   // Notificaciones: se escuchan los botones una sola vez y se reprograman cuando cambian los datos.
   useEffect(() => {
     escucharAcciones((periodo, inicio) => { setPestana("revision"); setPila([{ tipo: "cierre", cierre: { periodo, inicio } }]); });
@@ -100,6 +111,14 @@ export default function App() {
 
   return (
     <div className="app">
+      {nueva && (
+        <div className="aviso-version" role="status">
+          <Icono n="system_update" estilo={{ color: "var(--acento)" }} />
+          <div style={{ flex: 1 }}><div>Hay una versión nueva</div><div className="chico">{nueva.version}{nueva.notas ? ` · ${nueva.notas.split("\n")[0]}` : ""}</div></div>
+          <button className="accion principal" onClick={() => descargar(nueva)}>Actualizar</button>
+          <button className="icono-btn" aria-label="Ahora no" onClick={() => setNueva(null)}><Icono n="close" /></button>
+        </div>
+      )}
       <main className="pantalla" key={`${pestana}-${claveEncima(arriba)}-${subAjustes ?? ""}`}>{contenido}</main>
       <nav className="nav">
         {PESTANAS.map(([k, i, l]) => (

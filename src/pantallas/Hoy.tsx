@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Datos } from "../datos";
 import type { Preferencias } from "../db";
 import { alternarLibre, cambiarValor, elegirVariante, tocar } from "../lib/acciones";
@@ -6,7 +6,8 @@ import {
   diasSinSeguidos, esperado, fallaAnterior, pausaActiva, hechoEnSemana, metaSemana, patronDelDia, sumar, unidad, valorEn,
   type Historial, type Opciones,
 } from "../lib/calculos";
-import { DIAS_CORTOS, DIAS_LARGOS, DIAS_PLURAL, INICIALES, diaSemana, diasEntre, fechaCorta, mesDe, primerDia, sumarDias } from "../lib/fecha";
+import { DIAS_CORTOS, DIAS_LARGOS, DIAS_PLURAL, diaSemana, diasEntre, fechaCorta, mesDe, primerDia, sumarDias } from "../lib/fecha";
+import { puntuaciones } from "../lib/estadisticas";
 import type { Dia, Habito } from "../tipos";
 import { Barra, Circulo, Icono } from "../ui/piezas";
 
@@ -199,6 +200,8 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
   const orden = prefs.invertirSemana ? [...ds].reverse() : ds;
   let hecho = 0, meta = 0;
   for (const h of lista) { hecho += sumar(h, historiales.get(h.id)!, inicio, fin, op); meta += esperado(h, inicio, fin); }
+  // Anillo de puntuación de cada hábito (a hoy), como en Loop.
+  const punt = useMemo(() => new Map(lista.map((h) => [h.id, puntuaciones(h, historiales.get(h.id)!, hoy, hoy).get(hoy) ?? 0])), [historiales, hoy, lista.length]);
   return (
     <>
       <Barra
@@ -211,11 +214,11 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
       <div className="chico" style={{ textAlign: "right", marginBottom: 4 }}>{Math.round(hecho)} de {Math.round(meta)}</div>
       <div className="semana">
         <span />
-        {orden.map((d) => <span key={d} className={`cab${d === hoy ? " hoy" : ""}`}>{INICIALES[diaSemana(d)]}<br />{+d.slice(8)}</span>)}
+        {orden.map((d) => <span key={d} className={`cab${d === hoy ? " hoy" : ""}`}>{DIAS_CORTOS[diaSemana(d)].toUpperCase()}<br />{+d.slice(8)}</span>)}
         <span />
         {grupos(lista, prefs).map(([nombre, hs]) => hs.length > 0 && (
           <div className="fila-s" key={nombre}>
-            <div className="grupo g" style={{ margin: "10px 0 0" }}>{nombre}</div>
+            {grupos(lista, prefs).filter(([, x]) => x.length).length > 1 && <div className="grupo g" style={{ margin: "10px 0 0" }}>{nombre}</div>}
             {hs.map((h) => {
               const hist = historiales.get(h.id)!;
               const x = sumar(h, hist, inicio, fin, op);
@@ -223,11 +226,11 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
               const cumple = h.tipo !== "evitar" && x >= m;
               return (
                 <div className="fila-s" key={h.id}>
-                  <button className="n" style={{ color: h.color }} onClick={() => abrirDetalle(h)}><span>{h.nombre}</span></button>
+                  <button className="n" style={{ color: h.color }} onClick={() => abrirDetalle(h)}><AnilloChico valor={punt.get(h.id) ?? 0} color={h.color} /><span>{h.nombre}</span></button>
                   {orden.map((d) => (
                     <span className="c" key={d}>
                       {d > hoy ? null : (
-                        <Circulo chico esHoy={d === hoy} h={h} valor={valorEn(hist, d)} variante={hist.get(d)?.variante}
+                        <Circulo soloTilde esHoy={d === hoy} h={h} valor={valorEn(hist, d)} variante={hist.get(d)?.variante}
                           etiqueta={`${h.nombre} ${fechaCorta(d)}`} alTocar={() => marcar(h, d)} alMantener={() => mantener(h, d)} />
                       )}
                     </span>
@@ -246,3 +249,14 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
   );
 }
 
+
+/** Anillo de puntuación chico, a la izquierda del nombre (como Loop). */
+function AnilloChico({ valor, color }: { valor: number; color: string }) {
+  const c = 2 * Math.PI * 7;
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-label={`Puntuación ${valor}`}>
+      <circle cx="9" cy="9" r="7" fill="none" stroke="#2a2a2a" strokeWidth="3" />
+      <circle cx="9" cy="9" r="7" fill="none" stroke={color} strokeWidth="3" strokeDasharray={`${(valor / 100) * c} ${c}`} transform="rotate(-90 9 9)" />
+    </svg>
+  );
+}

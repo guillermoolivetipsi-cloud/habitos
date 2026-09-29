@@ -27,6 +27,7 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 - `src/lib/calculos.ts`: toda la lógica de frecuencias, progreso, patrones y "nunca fallar dos veces". Funciones puras, con pruebas.
 - `src/lib/importarLoop.ts`: lee la copia de seguridad de Loop (.db, SQLite con sql.js; trae recordatorios) o el ZIP "Exportar datos (CSV)". Los dos pasan por la misma conversión.
 - `src/lib/recordatorios.ts`: qué avisos programar (puro, con pruebas). `src/lib/notificaciones.ts`: los programa en Android.
+- `src/lib/actualizacion.ts`: al abrir la app busca en GitHub Releases una versión más nueva y ofrece descargarla (Android pide confirmar la instalación).
 - `src/lib/copia.ts`: copia de seguridad propia (armar, leer, restaurar, automática).
 - `src/lib/acciones.ts`: escrituras (marcar, día libre, importar, preferencias).
 - `src/pantallas/`: una por pantalla.
@@ -37,6 +38,7 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 - `npm test`: pruebas (Vitest).
 - `npm run build`: chequeo de tipos y compilación.
 - `npm run android`: compila y copia la app al proyecto de Android (`npx cap sync android`).
+- Publicar: cada push a `main` corre `.github/workflows/apk.yml`, que prueba, compila, firma con la clave fija (secretos del repo; copia local en `firma/`, fuera de git) y publica el APK como Release `v1.0.<número>`.
 - `npm run apk`: además arma el APK de prueba en `android/app/build/outputs/apk/debug/` (requiere Android Studio / JDK).
 
 ## Etapas

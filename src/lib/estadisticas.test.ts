@@ -37,3 +37,24 @@ describe("rachas", () => {
     expect(r.map((x) => [x.largo, x.unidad])).toEqual([[2, "semanas"]]);
   });
 });
+
+describe("series por escala", async () => {
+  const { historialPor, puntuacionPor, tramos } = await import("./estadisticas");
+  it("tramos: meses con el año en enero, trimestres y años", () => {
+    expect(tramos("2025-11-10", "2026-02-03", "mes").map((t) => t.etiqueta)).toEqual(["nov", "dic", "2026", "feb"]);
+    expect(tramos("2025-11-10", "2026-05-03", "trimestre").map((t) => t.etiqueta)).toEqual(["T4", "T1 26", "T2"]);
+    expect(tramos("2024-03-01", "2026-01-01", "anio").map((t) => t.etiqueta)).toEqual(["2024", "2025", "2026"]);
+  });
+  it("historial por mes: hechas, libres y meta del mes completo", () => {
+    const h = habito(5, 7);
+    const x = hist([["2026-01-05", "hecho"], ["2026-01-06", "libre"], ["2026-02-02", "hecho"]]);
+    const m = historialPor(h, x, "2026-02-10", op, "mes");
+    expect(m.map((t) => [t.etiqueta, t.hechas, t.libres, t.meta])).toEqual([["2026", 1, 1, 22], ["feb", 1, 0, 20]]);
+  });
+  it("la puntuación por semana termina en la de hoy", () => {
+    const h = habito();
+    const x = hist([...dias("2026-01-01", "2026-01-20")].map((d) => [d, "hecho"] as [Dia, Valor]));
+    const s = puntuacionPor(h, x, "2026-01-20", "semana");
+    expect(s[s.length - 1].valor).toBe(puntuaciones(h, x, "2026-01-20", "2026-01-20").get("2026-01-20"));
+  });
+});

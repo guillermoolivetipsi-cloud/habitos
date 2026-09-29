@@ -19,6 +19,9 @@
   --mal: #ff8a80;
   --meta: #ffd54f;
   --patron: #d9c46a;
+  /* Barras del sistema: Capacitor inyecta --safe-area-inset-*; en el navegador vale env(). */
+  --borde-arriba: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --borde-abajo: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
 }
 * { box-sizing: border-box; }
 html, body, #raiz { height: 100%; }
@@ -29,10 +32,12 @@ input, textarea { font: inherit; color: var(--tx); background: transparent; bord
 
 .material-symbols-outlined { font-size: 20px; vertical-align: middle; user-select: none; }
 
-.app { height: 100%; display: flex; flex-direction: column; max-width: 520px; margin: 0 auto; }
-.pantalla { flex: 1; overflow-y: auto; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 24px; scrollbar-width: none; }
+.app { height: 100%; display: flex; flex-direction: column; max-width: 520px; margin: 0 auto; padding-top: var(--borde-arriba); }
+/* Fondo fijo detrás de la barra de estado: lo que scrollea no pasa por debajo de la hora. */
+body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: var(--borde-arriba); background: var(--fondo); z-index: 30; }
+.pantalla { flex: 1; overflow-y: auto; padding: 12px 16px 24px; scrollbar-width: none; }
 .pantalla::-webkit-scrollbar { display: none; }
-.nav { display: flex; border-top: .5px solid var(--linea2); padding: 6px 0 calc(8px + env(safe-area-inset-bottom, 0px)); background: var(--fondo); }
+.nav { display: flex; border-top: .5px solid var(--linea2); padding: 6px 0 calc(8px + var(--borde-abajo)); background: var(--fondo); }
 .nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--dim); }
 .nav button .material-symbols-outlined { font-size: 23px; }
 .nav button.activo { color: var(--acento); }
@@ -66,15 +71,20 @@ input, textarea { font: inherit; color: var(--tx); background: transparent; bord
 .circulo.chico-c .material-symbols-outlined { font-size: 13px; }
 .circulo.hoy { box-shadow: 0 0 0 1.5px #ffffff22; }
 
-.semana { display: grid; grid-template-columns: 125px repeat(7, 1fr) 36px; align-items: center; }
-.semana .cab { font-size: 11px; color: var(--mu); text-align: center; line-height: 1.2; padding-bottom: 4px; }
+/* Vista Semana: 7 días, solo tilde, nombre en su color con anillo de puntuación, progreso a la derecha, sin líneas. */
+.semana { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 29px) 38px; align-items: center; }
+.semana .cab { font-size: 10.5px; letter-spacing: .3px; color: var(--mu); text-align: center; line-height: 1.25; padding-bottom: 6px; }
 .semana .cab.hoy { color: var(--tx); font-weight: 500; }
 .semana .fila-s { display: contents; }
-.semana .n { font-size: 12.5px; padding-right: 8px; text-align: left; height: 40px; display: flex; align-items: center; border-bottom: .5px solid var(--linea); min-width: 0; }
+.semana .n { font-size: 15.5px; padding-right: 6px; text-align: left; height: 54px; display: flex; align-items: center; gap: 9px; min-width: 0; }
 .semana .n span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.semana .c { height: 40px; display: flex; align-items: center; justify-content: center; border-bottom: .5px solid var(--linea); }
-.semana .p { font-size: 11.5px; text-align: right; color: var(--dim); height: 40px; display: flex; align-items: center; justify-content: flex-end; border-bottom: .5px solid var(--linea); }
+.semana .n svg { flex: none; }
+.semana .c { height: 54px; display: flex; align-items: center; justify-content: center; }
+.semana .p { font-size: 12px; text-align: right; color: var(--dim); height: 54px; display: flex; align-items: center; justify-content: flex-end; font-variant-numeric: tabular-nums; }
 .semana .g { grid-column: 1 / -1; }
+.marca { width: 29px; height: 54px; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.punto-vacio { width: 5px; height: 5px; border-radius: 50%; background: #383838; display: inline-block; }
+.punto-vacio.hoy { background: #666; box-shadow: 0 0 0 4px #ffffff14; }
 
 .aviso { background: var(--s2); border-radius: 10px; padding: 9px 12px; font-size: 12.5px; color: var(--tx2); display: flex; gap: 8px; align-items: center; margin: 8px 0; }
 .aviso.acento { background: #69f0ae14; color: var(--acento); }
@@ -96,10 +106,10 @@ input, textarea { font: inherit; color: var(--tx); background: transparent; bord
 .radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #666; flex: none; }
 .radio.on { border-color: var(--acento); box-shadow: inset 0 0 0 3px var(--fondo); background: var(--acento); }
 
-.aviso-flotante { position: fixed; left: 50%; transform: translateX(-50%); width: min(488px, calc(100% - 32px)); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: #2c2c2c; border-radius: 10px; padding: 11px 14px; font-size: 13px; z-index: 10; }
+.aviso-flotante { position: fixed; left: 50%; transform: translateX(-50%); width: min(488px, calc(100% - 32px)); bottom: calc(76px + var(--borde-abajo)); background: #2c2c2c; border-radius: 10px; padding: 11px 14px; font-size: 13px; z-index: 10; }
 
 .velo { position: fixed; inset: 0; background: #000a; display: flex; flex-direction: column; justify-content: flex-end; z-index: 20; }
-.hoja { background: var(--s2); border-radius: 18px 18px 0 0; padding: 12px 18px calc(18px + env(safe-area-inset-bottom, 0px)); max-height: 88%; overflow-y: auto; width: 100%; max-width: 520px; margin: 0 auto; }
+.hoja { background: var(--s2); border-radius: 18px 18px 0 0; padding: 12px 18px calc(18px + var(--borde-abajo)); max-height: 88%; overflow-y: auto; width: 100%; max-width: 520px; margin: 0 auto; }
 .agarre { width: 38px; height: 4px; border-radius: 2px; background: #444; margin: 0 auto 12px; }
 .pestanas { display: flex; border-bottom: .5px solid var(--linea2); margin: 16px 0 4px; }
 .pestanas button { flex: 1; padding: 9px 0; font-size: 13.5px; color: var(--mu); border-bottom: 2px solid transparent; }
@@ -107,6 +117,7 @@ input, textarea { font: inherit; color: var(--tx); background: transparent; bord
 .titulo-g { color: var(--acento); font-size: 15px; font-weight: 400; margin: 20px 0 2px; }
 .sub { font-size: 11.5px; color: var(--mu); margin: 0 0 8px; }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tiles.dos { grid-template-columns: repeat(2, 1fr); }
 .tile { background: var(--s1); border-radius: 10px; padding: 9px 10px; min-width: 0; }
 .tile > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kp { display: grid; grid-template-columns: repeat(3, auto); gap: 4px 16px; font-size: 11px; color: var(--mu); }
@@ -136,5 +147,18 @@ input, textarea { font: inherit; color: var(--tx); background: transparent; bord
 .progreso > u.marca-hoy { position: absolute; top: -3px; width: 2px; height: 11px; background: var(--meta); border-radius: 1px; }
 .etiqueta { font-size: 10px; padding: 1px 6px; border-radius: 5px; border: .5px solid #555; color: var(--tx2); margin-left: 6px; vertical-align: 1px; }
 .muestra { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+/* Botón de acción: se ve tocable (relleno y borde marcados), a diferencia de un chip de filtro. */
+.accion { font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--tx2); color: var(--tx); background: var(--s3); font-weight: 500; }
+.accion.principal { background: var(--acento); border-color: var(--acento); color: #000; }
+.accion:active { transform: scale(.97); }
+
+.desplazable { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 -4px; padding: 0 4px; }
+.desplazable::-webkit-scrollbar { display: none; }
+.escalas { display: inline-flex; gap: 2px; background: var(--s2); border-radius: 8px; padding: 2px; margin: 2px 0 8px; }
+.escalas button { font-size: 12px; padding: 4px 9px; border-radius: 6px; color: var(--mu); }
+.escalas button.activo { background: var(--s3); color: var(--tx); }
+
+.aviso-version { display: flex; align-items: center; gap: 10px; margin: 8px 16px 0; padding: 10px 12px; border-radius: 12px; background: #69f0ae14; border: 1px solid #69f0ae55; font-size: 13.5px; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

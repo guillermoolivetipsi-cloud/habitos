@@ -19,13 +19,15 @@ interface PropsCirculo {
   variante?: string;
   chico?: boolean;
   esHoy?: boolean;
+  /** Vista Semana: solo el tilde, sin círculo. Día libre = tilde tenue; sin marcar = punto tenue. */
+  soloTilde?: boolean;
   etiqueta: string;
   alTocar: () => void;
   alMantener: () => void;
 }
 
 /** Toque: marca o desmarca. Mantener 450 ms: día libre. */
-export function Circulo({ h, valor, variante, chico, esHoy, etiqueta, alTocar, alMantener }: PropsCirculo) {
+export function Circulo({ h, valor, variante, chico, esHoy, soloTilde, etiqueta, alTocar, alMantener }: PropsCirculo) {
   const t = useRef<number | undefined>(undefined);
   const mantuvo = useRef(false);
   const inicio = useRef<[number, number] | null>(null);
@@ -33,8 +35,8 @@ export function Circulo({ h, valor, variante, chico, esHoy, etiqueta, alTocar, a
   const cancelar = () => { window.clearTimeout(t.current); inicio.current = null; };
   return (
     <button
-      className={`circulo${chico ? " chico-c" : ""}${esHoy ? " hoy" : ""}`}
-      style={estilo}
+      className={soloTilde ? "marca" : `circulo${chico ? " chico-c" : ""}${esHoy ? " hoy" : ""}`}
+      style={soloTilde ? undefined : estilo}
       aria-label={etiqueta}
       onPointerDown={(e) => {
         mantuvo.current = false;
@@ -56,9 +58,18 @@ export function Circulo({ h, valor, variante, chico, esHoy, etiqueta, alTocar, a
         alTocar();
       }}
     >
-      {hecho && variante ? <b style={{ fontWeight: 500, color: h.color }}>{variante[0]}</b> : hecho ? <Icono n="check" estilo={{ color: h.color }} /> : null}
+      {soloTilde ? marcaTilde(h.color, valor, variante, !!esHoy)
+        : hecho && variante ? <b style={{ fontWeight: 500, color: h.color }}>{variante[0]}</b> : hecho ? <Icono n="check" estilo={{ color: h.color }} /> : null}
     </button>
   );
+}
+
+function marcaTilde(color: string, v: Valor | undefined, variante: string | undefined, esHoy: boolean) {
+  if (v === "hecho" && variante) return <b style={{ fontWeight: 500, fontSize: 15, color }}>{variante[0]}</b>;
+  if (v === "hecho") return <Icono n="check" estilo={{ color, fontSize: 22 }} />;
+  if (v === "minima") return <Icono n="check" estilo={{ color, fontSize: 22, opacity: 0.65 }} />;
+  if (v === "libre") return <Icono n="check" estilo={{ color, fontSize: 22, opacity: 0.38 }} />;
+  return <span className={`punto-vacio${esHoy ? " hoy" : ""}`} />;
 }
 
 export const Interruptor = ({ on, etiqueta, alCambiar }: { on: boolean; etiqueta: string; alCambiar: () => void }) => (
@@ -77,6 +88,25 @@ export function Hoja({ children, cerrar }: { children: ReactNode; cerrar: () => 
         <div className="agarre" />
         {children}
       </div>
+    </div>
+  );
+}
+
+/** Recordatorio de un hábito: apagado o a una hora. Se usa en el editor y en el detalle. */
+export function CampoRecordatorio({ valor, alCambiar }: { valor: string | null; alCambiar: (v: string | null) => void }) {
+  const encendido = valor != null;
+  return (
+    <div className="campo">
+      <label>Recordatorio</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Icono n={encendido ? "notifications_active" : "notifications_off"} estilo={{ color: encendido ? "var(--acento)" : "var(--dim)" }} />
+        <div style={{ flex: 1 }}>{encendido ? "Todos los días que toca, a las" : "Apagado"}</div>
+        <Interruptor on={encendido} etiqueta="Recordatorio" alCambiar={() => alCambiar(encendido ? null : "20:00")} />
+      </div>
+      {encendido && (
+        <input aria-label="Hora del recordatorio" type="time" value={valor} onChange={(e) => e.target.value && alCambiar(e.target.value)}
+          style={{ fontSize: 26, marginTop: 10, padding: "6px 10px", border: "1px solid var(--linea2)", borderRadius: 8, width: "auto" }} />
+      )}
     </div>
   );
 }

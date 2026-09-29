@@ -2,9 +2,9 @@ import { useState } from "react";
 import type { Datos } from "../datos";
 import { aplicarSugerencia } from "../lib/acciones";
 import type { Opciones } from "../lib/calculos";
-import { DIAS_PLURAL, INICIALES, MESES_CORTOS, diasEntre, fechaCorta, lunes, mesDe, nombreMes, sumarDias, sumarMeses } from "../lib/fecha";
+import { DIAS_PLURAL, MESES_CORTOS, diasEntre, fechaCorta, lunes, mesDe, nombreMes, sumarDias, sumarMeses } from "../lib/fecha";
 import {
-  cambios, cumplimiento, patronesPorHabito, porDiaSemana, porHabito, rangoMes, sugerencias, votos,
+  cambios, cumplimiento, patronesPorHabito, porHabito, rangoMes, sugerencias, votos,
 } from "../lib/revision";
 import { Barras, Lineas, redondeo } from "../ui/Graficos";
 import { Barra, Icono } from "../ui/piezas";
@@ -45,9 +45,7 @@ export default function Revision({ datos, hoy, abrirCierre, abrirDetalle, avisar
   // Con el período en curso se compara contra el anterior a la misma altura (lunes contra lunes).
   const enCurso = a <= hoy && hoy < b;
   const anterior = cumplimiento(habitos, hs, antA, enCurso ? mismaAltura(a, hoy, antA, antB) : antB, hoy, op);
-  const dif = actual.porcentaje - anterior.porcentaje;
   const mes = cumplimiento(habitos, hs, ...rangoMes(mesDe(hoy)), hoy, op);
-  const hoyEnPeriodo = a <= hoy && hoy <= b;
 
   return (
     <>
@@ -63,9 +61,8 @@ export default function Revision({ datos, hoy, abrirCierre, abrirDetalle, avisar
         <button className="icono-btn" aria-label="Siguiente" disabled={desfase >= 0} onClick={() => setDesfase(desfase + 1)}><Icono n="chevron_right" /></button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, margin: "6px 0 4px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, margin: "6px 0 4px" }}>
         <Tarjetita titulo="Cumplido" valor={`${actual.porcentaje}%`} pie={`${Math.round(actual.hechas)} de ${Math.round(actual.esperadas)}`} />
-        <Tarjetita titulo={`vs ${periodo === "semana" ? "semana" : periodo === "mes" ? "mes" : "año"} ant.${enCurso ? " a esta altura" : ""}`} valor={<span style={{ color: dif >= 0 ? "var(--acento)" : "var(--mal)" }}>{dif >= 0 ? "+" : ""}{dif}</span>} pie="puntos" />
         {periodo === "semana"
           ? <Tarjetita titulo={mayus(nombreMes(mesDe(hoy)))} valor={`${mes.porcentaje}%`} pie={`al ${fechaCorta(hoy)}`} />
           : <Tarjetita titulo="Anterior" valor={`${anterior.porcentaje}%`} pie={periodo === "mes" ? nombreMes(mesDe(antA)) : antA.slice(0, 4)} />}
@@ -78,22 +75,19 @@ export default function Revision({ datos, hoy, abrirCierre, abrirDetalle, avisar
 
       {periodo === "semana" && (
         <>
-          <h3 className="titulo-g">Tus días · 90 días</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
-            {INICIALES.map((l) => <span key={l} className="chico" style={{ textAlign: "center" }}>{l}</span>)}
-            {porDiaSemana(habitos, hs, hoy, op).map((p, i) => <span key={i} style={celda(p)}>{p}</span>)}
-          </div>
           <Patrones datos={datos} hoy={hoy} />
           <Identidades datos={datos} hoy={hoy} />
         </>
       )}
 
-      <h3 className="titulo-g">Cierres</h3>
-      {hoyEnPeriodo || periodo !== "semana" ? (
-        <button className="boton2" onClick={() => abrirCierre({ periodo, inicio: a })}>
-          <Icono n="summarize" estilo={{ fontSize: 17 }} /> Ver el cierre de {periodo === "semana" ? "esta semana" : periodo === "mes" ? nombreMes(mesDe(a)) : a.slice(0, 4)}
-        </button>
-      ) : null}
+      {periodo !== "semana" && (
+        <>
+          <h3 className="titulo-g">Cierre</h3>
+          <button className="boton2" onClick={() => abrirCierre({ periodo, inicio: a })}>
+            <Icono n="summarize" estilo={{ fontSize: 17 }} /> Ver el cierre de {periodo === "mes" ? nombreMes(mesDe(a)) : a.slice(0, 4)}
+          </button>
+        </>
+      )}
       {periodo === "semana" && <SemanasCerradas datos={datos} hoy={hoy} op={op} abrirCierre={abrirCierre} />}
       {periodo === "semana" && datos.decisiones.length > 0 && (
         <>
@@ -126,7 +120,7 @@ function ParaDecidir({ datos, hoy, op, avisar }: { datos: Datos; hoy: string; op
           <div className="chico">{x.detalle}</div>
           <div className="chips" style={{ marginTop: 8 }}>
             {x.acciones.map((ac) => (
-              <button key={ac.etiqueta} className="chip" onClick={async () => {
+              <button key={ac.etiqueta} className={ac.tipo === "dejar" ? "accion" : "accion principal"} onClick={async () => {
                 await aplicarSugerencia(x.h, ac, hoy);
                 avisar(ac.tipo === "dejar" ? "Listo, no lo vuelvo a sugerir por un mes" : ac.tipo === "archivar" ? `${x.h.nombre} archivado` : `${x.h.nombre}: ${ac.etiqueta.toLowerCase()}, desde hoy`, 3000);
               }}>{ac.etiqueta}</button>
@@ -157,17 +151,19 @@ function PorHabito({ datos, a, b, hoy, op, abrirDetalle }: { datos: Datos; a: st
   );
 }
 
+/** Los 3 días de la semana que más cuestan, en una frase cada uno. */
 function Patrones({ datos, hoy }: { datos: Datos; hoy: string }) {
   if (!datos.prefs.patrones) return null;
-  const p = patronesPorHabito(datos.habitos, datos.historiales, hoy).slice(0, 5);
+  const p = patronesPorHabito(datos.habitos, datos.historiales, hoy).slice(0, 3);
   if (!p.length) return null;
   return (
     <>
-      <p className="sub" style={{ marginTop: 12 }}>Patrones por hábito</p>
+      <h3 className="titulo-g">Patrones</h3>
+      <p className="sub">qué día de la semana cuesta más · últimos 90 días</p>
       {p.map((x) => (
         <div key={x.h.id} className="item" style={{ padding: "8px 0" }}>
           <span className="punto" style={{ background: x.h.color }} />
-          <div className="t"><div style={{ fontSize: 13.5 }}>{x.h.nombre}: los {DIAS_PLURAL[x.dia]} {x.tasa}%</div><div className="chico">el resto de la semana {x.resto}%</div></div>
+          <div className="t"><div style={{ fontSize: 13.5 }}>{x.h.nombre}: los {DIAS_PLURAL[x.dia]} {x.tasa}% <span className="chico">(el resto {x.resto}%)</span></div></div>
         </div>
       ))}
     </>
@@ -195,22 +191,25 @@ function Identidades({ datos, hoy }: { datos: Datos; hoy: string }) {
   );
 }
 
+/** Historial de semanas: tocar una abre su cierre. La primera es la semana en curso. */
 function SemanasCerradas({ datos, hoy, op, abrirCierre }: { datos: Datos; hoy: string; op: Opciones; abrirCierre: (c: Cierre) => void }) {
   const l0 = lunes(hoy);
   return (
     <>
-      <p className="sub" style={{ marginTop: 14 }}>Semanas cerradas</p>
-      {[1, 2, 3, 4].map((i) => {
+      <h3 className="titulo-g">Semanas anteriores</h3>
+      <p className="sub">tocá una para ver su cierre</p>
+      {[0, 1, 2, 3, 4].map((i) => {
         const l = sumarDias(l0, -7 * i);
         const c = cumplimiento(datos.habitos, datos.historiales, l, sumarDias(l, 6), hoy, op);
         return (
           <button key={l} className="item" onClick={() => abrirCierre({ periodo: "semana", inicio: l })}>
             <div className="t">
-              <div>{rangoSemanal(l)}</div>
+              <div>{i === 0 ? "Esta semana" : rangoSemanal(l)}{i === 0 && <span className="chico"> · en curso</span>}</div>
               <div className="progreso" style={{ marginTop: 6 }}><i style={{ width: `${Math.min(100, c.porcentaje)}%`, opacity: 0.8 }} /></div>
-              <div className="chico" style={{ marginTop: 4 }}>{datos.notas.get(`semana:${l}`) ?? "Sin nota"}</div>
+              {datos.notas.get(`semana:${l}`) && <div className="chico" style={{ marginTop: 4 }}>{datos.notas.get(`semana:${l}`)}</div>}
             </div>
             <span>{c.porcentaje}%</span>
+            <Icono n="chevron_right" estilo={{ color: "#555" }} />
           </button>
         );
       })}

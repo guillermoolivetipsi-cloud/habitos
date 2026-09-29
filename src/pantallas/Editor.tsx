@@ -4,7 +4,7 @@ import { archivar, crearHabito, guardarHabito, nuevoId, reactivar } from "../lib
 import { textoFrecuencia } from "../lib/calculos";
 import { DIAS_LARGOS, INICIALES } from "../lib/fecha";
 import type { Frecuencia, Habito, TipoHabito } from "../tipos";
-import { Barra, Hoja, Icono, Interruptor } from "../ui/piezas";
+import { Barra, CampoRecordatorio, Hoja, Icono, Interruptor } from "../ui/piezas";
 import { ConfirmarEliminar } from "./Detalle";
 import { MOMENTOS } from "./Hoy";
 
@@ -185,6 +185,7 @@ function Formulario({ datos, hoy, habito, volver, alTerminar, avisar, tipo }: Pr
         </div>
       )}
 
+      <CampoRecordatorio valor={b.recordatorio || null} alCambiar={(v) => cambiar("recordatorio", v ?? "")} />
       <div className="campo"><label>Momento del día</label><Chips valor={b.momento} opciones={MOMENTOS} alElegir={(v) => cambiar("momento", v)} /></div>
       <div className="campo">
         <label htmlFor="e-area">Área</label>
@@ -218,7 +219,6 @@ function Formulario({ datos, hoy, habito, volver, alTerminar, avisar, tipo }: Pr
           </div>
         </>
       )}
-      <div className="campo"><label htmlFor="e-rec">Recordatorio</label><input id="e-rec" type="time" value={b.recordatorio} onChange={(e) => cambiar("recordatorio", e.target.value)} /></div>
 
       <div className="item" style={{ marginTop: 6 }}>
         <div className="t"><div>Versión mínima</div><div className="chico">{tipo === "evitar" ? 'Un límite: si no lo evitás, ¿qué sería "dentro del límite"? Cuenta medio día.' : "Para los días flojos. Cuenta como hecho."}</div></div>

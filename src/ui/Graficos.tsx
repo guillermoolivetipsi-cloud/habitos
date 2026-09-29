@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import type { Habito, Valor } from "../tipos";
 import { DIAS_CORTOS, MESES_CORTOS, fechaCorta, lunes, sumarDias } from "../lib/fecha";
 
@@ -15,11 +16,13 @@ interface PropsBarras {
   formato?: (v: number, i: number) => string;
   /** Qué barras van con color pleno; por defecto, las que llegan a la meta. */
   destacada?: (i: number) => boolean;
+  /** Ancho en píxeles para gráficos que se desplazan; sin él, ocupa el ancho disponible. */
+  ancho?: number;
 }
 
 /** Barras con el número arriba de cada una y, si hay, la línea de meta. */
-export function Barras({ valores, etiquetas, apiladas, meta, color, alto = 132, formato = redondeo, destacada }: PropsBarras) {
-  const W = 340, arriba = 18, abajo = 20, n = valores.length, cw = W / n, bw = Math.min(22, cw * 0.62);
+export function Barras({ valores, etiquetas, apiladas, meta, color, alto = 132, formato = redondeo, destacada, ancho }: PropsBarras) {
+  const W = ancho ?? 340, arriba = 18, abajo = 20, n = valores.length, cw = W / n, bw = Math.min(22, cw * 0.62);
   const tot = valores.map((v, i) => v + (apiladas?.[i] ?? 0));
   const metaMax = Array.isArray(meta) ? Math.max(...meta) : meta ?? 0;
   const max = Math.max(1, ...tot, metaMax) * 1.08;
@@ -28,7 +31,7 @@ export function Barras({ valores, etiquetas, apiladas, meta, color, alto = 132, 
   let camino = "";
   if (Array.isArray(meta)) meta.forEach((m, i) => { camino += `${i ? "L" : "M"}${i * cw} ${y(m)}H${(i + 1) * cw}`; });
   return (
-    <svg viewBox={`0 0 ${W} ${alto}`} width="100%" role="img" aria-label="Gráfico de barras">
+    <svg viewBox={`0 0 ${W} ${alto}`} width={ancho ?? "100%"} height={ancho ? alto : undefined} role="img" aria-label="Gráfico de barras" style={{ display: "block" }}>
       {valores.map((v, i) => {
         const x = i * cw + (cw - bw) / 2;
         const m = metaDe(i);
@@ -52,19 +55,20 @@ export function Barras({ valores, etiquetas, apiladas, meta, color, alto = 132, 
 interface Serie { valores: (number | null)[]; color: string; etiqueta?: string; grosor?: number; puntos?: boolean; punteada?: boolean }
 
 /** Líneas con eje ajustado y etiqueta al final de cada serie. */
-export function Lineas({ series, etiquetas, min = 0, max, alto = 140, margenDerecho = 38 }: { series: Serie[]; etiquetas: string[]; min?: number; max?: number; alto?: number; margenDerecho?: number }) {
-  const W = 340, arriba = 14, abajo = 20, izq = 24, der = W - margenDerecho;
+export function Lineas({ series, etiquetas, min = 0, max, alto = 140, margenDerecho = 38, ancho, ejeDerecha }: { series: Serie[]; etiquetas: string[]; min?: number; max?: number; alto?: number; margenDerecho?: number; ancho?: number; ejeDerecha?: boolean }) {
+  // Con el eje a la derecha (gráficos que se desplazan y arrancan en lo más reciente), los números quedan a la vista.
+  const W = ancho ?? 340, arriba = 14, abajo = 20, izq = ejeDerecha ? 8 : 24, der = W - (ejeDerecha ? 28 : margenDerecho);
   const todos = series.flatMap((s) => s.valores.filter((v): v is number => v != null));
   const mx = max ?? Math.max(1, ...todos) * 1.05;
   const n = etiquetas.length;
   const x = (i: number) => izq + (der - izq) * (n === 1 ? 0 : i / (n - 1));
   const y = (v: number) => arriba + (alto - arriba - abajo) * (1 - (v - min) / (mx - min || 1));
   return (
-    <svg viewBox={`0 0 ${W} ${alto}`} width="100%" role="img" aria-label="Gráfico de líneas">
+    <svg viewBox={`0 0 ${W} ${alto}`} width={ancho ?? "100%"} height={ancho ? alto : undefined} role="img" aria-label="Gráfico de líneas" style={{ display: "block" }}>
       {[min, (min + mx) / 2, mx].map((t) => (
         <g key={t}>
           <line x1={izq} x2={der} y1={y(t)} y2={y(t)} stroke="#1f1f1f" />
-          <text x={0} y={y(t) + 3} fontSize={9} fill="#6e6e6e">{Math.round(t)}</text>
+          <text x={ejeDerecha ? W - 2 : 0} y={y(t) + 3} fontSize={9} fill="#6e6e6e" textAnchor={ejeDerecha ? "end" : "start"}>{Math.round(t)}</text>
         </g>
       ))}
       {etiquetas.map((l, i) => l && <text key={i} x={x(i)} y={alto - 5} textAnchor="middle" fontSize={9.5} fill="#8a8a8a">{l}</text>)}
@@ -111,7 +115,7 @@ export function Calendario({ h, valor, hoy, semanas = 14, alTocar, alMantener }:
   const cols = Array.from({ length: semanas }, (_, w) => sumarDias(inicio, 7 * w));
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${semanas}, 1fr) 28px`, gap: 3, fontSize: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${semanas}, ${semanas > 14 ? "21px" : "1fr"}) 28px`, gap: 3, fontSize: 10, width: semanas > 14 ? semanas * 24 + 28 : undefined }}>
         {cols.map((l, w) => {
           let etiqueta = "";
           for (let k = 0; k < 7; k++) { const d = sumarDias(l, k); if (+d.slice(8) === 1 || (w === 0 && k === 0)) etiqueta = MESES_CORTOS[+d.slice(5, 7) - 1]; }
@@ -171,3 +175,38 @@ export function FrecuenciaPuntos({ datos, color }: { datos: { mes: string; veces
   );
 }
 
+
+/**
+ * Contenedor que se desplaza hacia los costados. Arranca mostrando el final (lo más reciente);
+ * arrastrando hacia la derecha se ve el pasado. `clave` vuelve a llevarlo al final cuando cambia la escala.
+ */
+export function Desplazable({ children, clave }: { children: ReactNode; clave: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const arrastre = useRef<{ x: number; inicio: number; movio: boolean } | null>(null);
+  useLayoutEffect(() => { if (ref.current) ref.current.scrollLeft = ref.current.scrollWidth; }, [clave]);
+  // Con el dedo el desplazamiento es nativo. Con el mouse se arrastra a mano; un clic sin moverse sigue funcionando.
+  return (
+    <div ref={ref} className="desplazable"
+      onPointerDown={(e) => { if (e.pointerType === "mouse" && ref.current) arrastre.current = { x: e.clientX, inicio: ref.current.scrollLeft, movio: false }; }}
+      onPointerMove={(e) => {
+        const a = arrastre.current;
+        if (!a || !ref.current) return;
+        if (!a.movio && Math.abs(e.clientX - a.x) > 5) { a.movio = true; ref.current.setPointerCapture(e.pointerId); }
+        if (a.movio) ref.current.scrollLeft = a.inicio - (e.clientX - a.x);
+      }}
+      onPointerUp={() => { window.setTimeout(() => { arrastre.current = null; }); }}
+      onPointerCancel={() => { arrastre.current = null; }}
+      onClickCapture={(e) => { if (arrastre.current?.movio) { e.stopPropagation(); e.preventDefault(); } }}>
+      {children}
+    </div>
+  );
+}
+
+/** Selector de escala (Día, Semana, Mes…), como el de Loop. */
+export function SelectorEscala<T extends string>({ valor, opciones, alCambiar }: { valor: T; opciones: [T, string][]; alCambiar: (v: T) => void }) {
+  return (
+    <div className="escalas" role="tablist">
+      {opciones.map(([k, l]) => <button key={k} role="tab" aria-selected={valor === k} className={valor === k ? "activo" : ""} onClick={() => alCambiar(k)}>{l}</button>)}
+    </div>
+  );
+}

@@ -3,12 +3,13 @@ import type { Datos } from "../datos";
 import { alternarLibre, archivar, eliminar, tocar } from "../lib/acciones";
 import { fallaAnterior, retomar, textoFrecuencia, unidad, valorEn, type Opciones } from "../lib/calculos";
 import {
-  acumuladoAnio, frecuenciaMensual, meses, mejoresRachas, puntuaciones, rachaActual, rachas, resumen, semanas,
+  acumuladoAnio, frecuenciaMensual, historialPor, mejoresRachas, puntuacionPor, puntuaciones, rachaActual, rachas, resumen, type Escala,
 } from "../lib/estadisticas";
 import { DIAS_CORTOS, DIAS_LARGOS, MESES_CORTOS, fechaCorta, sumarDias } from "../lib/fecha";
 import type { Habito } from "../tipos";
-import { AnilloPuntuacion, Barras, Calendario, FrecuenciaPuntos, Lineas, redondeo } from "../ui/Graficos";
-import { Barra, Hoja, Icono } from "../ui/piezas";
+import { AnilloPuntuacion, Barras, Calendario, Desplazable, FrecuenciaPuntos, Lineas, SelectorEscala, redondeo } from "../ui/Graficos";
+import { Barra, CampoRecordatorio, Hoja, Icono } from "../ui/piezas";
+import { db } from "../db";
 import { MOMENTOS } from "./Hoy";
 
 type Pestana = "Progreso" | "Patrones" | "Historial";
@@ -17,7 +18,7 @@ export default function Detalle({ h, datos, hoy, volver, editar, avisar }: {
   h: Habito; datos: Datos; hoy: string; volver: () => void; editar: () => void; avisar: (c: React.ReactNode, ms?: number) => void;
 }) {
   const [pestana, setPestana] = useState<Pestana>("Progreso");
-  const [menu, setMenu] = useState<null | "opciones" | "eliminar">(null);
+  const [menu, setMenu] = useState<null | "opciones" | "eliminar" | "recordatorio">(null);
   const hist = datos.historiales.get(h.id) ?? new Map();
   const op: Opciones = { libresCumplen: datos.prefs.libresCumplen };
   const f = h.frecuencias[h.frecuencias.length - 1].frecuencia;
@@ -37,7 +38,9 @@ export default function Detalle({ h, datos, hoy, volver, editar, avisar }: {
       </Barra>
       <div className="chico" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
         <span><Icono n="calendar_today" estilo={{ fontSize: 15 }} /> {h.tipo === "medir" && h.medicion ? `${h.medicion.sentido === "alMenos" ? "al menos" : "como máximo"} ${h.medicion.cantidad} ${h.medicion.unidad}` : textoFrecuencia(f, h.tipo)}</span>
-        <span><Icono n="notifications" estilo={{ fontSize: 15 }} /> {h.recordatorio ?? "Apagado"}</span>
+        <button className="chico" onClick={() => setMenu("recordatorio")} aria-label="Cambiar recordatorio" style={{ textDecoration: "underline dotted", textUnderlineOffset: 3 }}>
+          <Icono n={h.recordatorio ? "notifications" : "notifications_off"} estilo={{ fontSize: 15 }} /> {h.recordatorio ?? "Sin recordatorio"}
+        </button>
         <span><Icono n="schedule" estilo={{ fontSize: 15 }} /> {MOMENTOS.find((m) => m[0] === h.momento)?.[1]}</span>
         {h.frecuencias.length > 1 && <span><Icono n="history" estilo={{ fontSize: 15 }} /> así desde el {fechaCorta(h.frecuencias[h.frecuencias.length - 1].desde)}</span>}
       </div>
@@ -64,10 +67,12 @@ export default function Detalle({ h, datos, hoy, volver, editar, avisar }: {
         <>
           <DiasSemana h={h} hist={hist} hoy={hoy} />
           <h3 className="titulo-g">Calendario</h3>
-          <p className="sub">tocá un día para marcar · mantené presionado para día libre</p>
-          <Calendario h={h} hoy={hoy} valor={(d) => valorEn(hist, d)}
-            alTocar={(d) => tocar(h, d)}
-            alMantener={async (d) => { const p = await alternarLibre(h, d); avisar(p ? `Día libre el ${fechaCorta(d)}` : "Día libre quitado", 1800); }} />
+          <p className="sub">tocá un día para marcar · mantené presionado para día libre · deslizá para ver el pasado</p>
+          <Desplazable clave={h.id}>
+            <Calendario h={h} hoy={hoy} valor={(d) => valorEn(hist, d)} semanas={semanasCalendario(hist, hoy)}
+              alTocar={(d) => tocar(h, d)}
+              alMantener={async (d) => { const p = await alternarLibre(h, d); avisar(p ? `Día libre el ${fechaCorta(d)}` : "Día libre quitado", 1800); }} />
+          </Desplazable>
           <h3 className="titulo-g">Frecuencia</h3>
           <p className="sub">veces por día de la semana, mes a mes · últimos 12 meses</p>
           <FrecuenciaPuntos datos={frecuenciaMensual(h, hist, hoy)} color={h.color} />
@@ -88,8 +93,24 @@ export default function Detalle({ h, datos, hoy, volver, editar, avisar }: {
           </button>
         </Hoja>
       )}
+      {menu === "recordatorio" && <HojaRecordatorio h={h} cerrar={() => setMenu(null)} avisar={avisar} />}
       {menu === "eliminar" && <ConfirmarEliminar h={h} registros={hist.size} cerrar={() => setMenu(null)} alListo={volver} avisar={avisar} />}
     </>
+  );
+}
+
+function HojaRecordatorio({ h, cerrar, avisar }: { h: Habito; cerrar: () => void; avisar: (c: React.ReactNode) => void }) {
+  const [valor, setValor] = useState<string | null>(h.recordatorio);
+  return (
+    <Hoja cerrar={cerrar}>
+      <div style={{ fontSize: 16, marginBottom: 2 }}>Recordatorio de {h.nombre}</div>
+      <CampoRecordatorio valor={valor} alCambiar={setValor} />
+      <button className="boton" onClick={async () => {
+        await db.habitos.update(h.id, { recordatorio: valor });
+        avisar(valor ? `Te aviso a las ${valor}` : "Recordatorio apagado");
+        cerrar();
+      }}>Guardar</button>
+    </Hoja>
   );
 }
 
@@ -112,42 +133,21 @@ function Progreso({ h, hist, hoy, op, r, punt }: PropsP & { r: ReturnType<typeof
     <div className="tile"><div className="chico">{a}</div><div style={{ fontSize: 17 }}>{b}</div>{c && <div className="chico">{c}</div>}</div>
   );
   const pct = (x: number | null) => (x == null ? "—" : `${x}%`);
-  const ptos = Array.from({ length: 17 }, (_, i) => punt.get(sumarDias(hoy, -7 * (16 - i))) ?? 0);
-  const minP = Math.max(0, Math.floor((Math.min(...ptos) - 8) / 10) * 10);
-  const sem = semanas(h, hist, hoy, op);
-  const ms = meses(h, hist, hoy, op);
   const u = unidad(h, hoy);
   const rt = h.nuncaDosVeces ? retomar(h, hist, hoy, op) : null;
   const falla = fallaAnterior(h, hist, hoy, op);
   return (
     <>
       <h3 className="titulo-g">Resumen</h3>
-      <div className="tiles">
+      <div className="tiles dos">
         {tile("Total", r.total.toLocaleString("es-AR"), r.primerDia ? `desde ${MESES_CORTOS[+r.primerDia.slice(5, 7) - 1]} ${r.primerDia.slice(0, 4)}` : undefined)}
         {tile("30 días", pct(r.p30), "del objetivo")}
-        {tile("90 días", pct(r.p90), "del objetivo")}
         {tile("12 meses", pct(r.p365), "del objetivo")}
-        {tile("Por semana", redondeo(r.porSemana), "últimas 12")}
-        {tile("Mejor racha", r.mejorRacha || "—", u === "semana" ? "semanas" : "días")}
-        {tile("Mejor mes", r.mejorMes ? MESES_CORTOS[+r.mejorMes.mes.slice(5) - 1] : "—", r.mejorMes ? `${redondeo(r.mejorMes.veces)} veces` : undefined)}
-        {tile("Mejor día", r.mejorDia ? DIAS_LARGOS[r.mejorDia.dia] : "—", r.mejorDia ? `${r.mejorDia.tasa}% de las veces` : undefined)}
-        {tile("Este año", redondeo(r.esteAnio), "veces")}
+        {tile("Por semana", redondeo(r.porSemana), "promedio de las últimas 12")}
       </div>
 
-      <h3 className="titulo-g">Puntuación</h3>
-      <p className="sub">Lo reciente pesa más · hace 1 mes {punt.get(sumarDias(hoy, -30)) ?? 0} · hace 1 año {punt.get(sumarDias(hoy, -365)) ?? 0}</p>
-      <Lineas series={[{ valores: ptos, color: h.color, puntos: true }]} min={minP} max={100} margenDerecho={10}
-        etiquetas={ptos.map((_, i) => (i % 4 === 0 ? fechaCorta(sumarDias(hoy, -7 * (16 - i))) : ""))} />
-
-      <h3 className="titulo-g">{u === "semana" ? "Semanas cumplidas" : "Días por semana"}</h3>
-      <p className="sub">objetivo {sem[sem.length - 1].meta} · gris = días libres</p>
-      <Barras valores={sem.map((s) => s.hechas)} apiladas={sem.map((s) => s.libres)} meta={sem.map((s) => s.meta)} color={h.color}
-        etiquetas={sem.map((s, i) => ((sem.length - 1 - i) % 3 === 0 ? fechaCorta(s.lunes) : ""))} />
-
-      <h3 className="titulo-g">Veces por mes</h3>
-      <p className="sub">línea = objetivo · gris = días libres, no se suman al número</p>
-      <Barras valores={ms.map((m) => m.hechas)} apiladas={ms.map((m) => m.libres)} meta={ms.map((m) => m.meta)} color={h.color}
-        etiquetas={ms.map((m) => MESES_CORTOS[+m.mes.slice(5) - 1])} />
+      <GraficoPuntuacion h={h} hist={hist} hoy={hoy} punt={punt} />
+      <GraficoHistorial h={h} hist={hist} hoy={hoy} op={op} />
 
       {h.nuncaDosVeces && (
         <>
@@ -164,6 +164,56 @@ function Progreso({ h, hist, hoy, op, r, punt }: PropsP & { r: ReturnType<typeof
           ) : <p className="sub">Sin fallos en el período.</p>}
         </>
       )}
+    </>
+  );
+}
+
+/** Semanas del calendario: desde el primer registro (mínimo 14, máximo 10 años). */
+function semanasCalendario(hist: PropsP["hist"], hoy: string) {
+  const primero = [...hist.keys()].sort()[0];
+  if (!primero) return 14;
+  const n = Math.ceil((Date.parse(hoy) - Date.parse(primero)) / (7 * 864e5)) + 1;
+  return Math.min(520, Math.max(14, n));
+}
+
+/** Ancho de cada punto o barra según la escala, para que el gráfico se pueda recorrer hacia atrás. */
+const PASO: Record<Escala, number> = { dia: 9, semana: 18, mes: 30, trimestre: 40, anio: 56 };
+/** Las barras llevan el número arriba: necesitan más lugar que los puntos de una línea. */
+const PASO_BARRA: Record<Exclude<Escala, "dia">, number> = { semana: 26, mes: 32, trimestre: 44, anio: 60 };
+const ESCALAS_PUNTUACION: [Escala, string][] = [["dia", "Día"], ["semana", "Semana"], ["mes", "Mes"], ["trimestre", "Trim."], ["anio", "Año"]];
+const ESCALAS_HISTORIAL: [Exclude<Escala, "dia">, string][] = [["semana", "Semana"], ["mes", "Mes"], ["trimestre", "Trim."], ["anio", "Año"]];
+
+function GraficoPuntuacion({ h, hist, hoy, punt }: { h: Habito; hist: PropsP["hist"]; hoy: string; punt: Map<string, number> }) {
+  const [escala, setEscala] = useState<Escala>("semana");
+  const serie = useMemo(() => puntuacionPor(h, hist, hoy, escala), [h, hist, hoy, escala]);
+  const ancho = Math.max(340, serie.length * PASO[escala] + 40);
+  return (
+    <>
+      <h3 className="titulo-g">Puntuación</h3>
+      <p className="sub">Lo reciente pesa más · hace 1 mes {punt.get(sumarDias(hoy, -30)) ?? 0} · hace 1 año {punt.get(sumarDias(hoy, -365)) ?? 0} · deslizá para ver el pasado</p>
+      <SelectorEscala valor={escala} opciones={ESCALAS_PUNTUACION} alCambiar={setEscala} />
+      <Desplazable clave={escala}>
+        <Lineas series={[{ valores: serie.map((t) => t.valor), color: h.color, puntos: escala !== "dia" }]} min={0} max={100}
+          etiquetas={serie.map((t) => t.etiqueta)} ancho={ancho} ejeDerecha />
+      </Desplazable>
+    </>
+  );
+}
+
+function GraficoHistorial({ h, hist, hoy, op }: PropsP) {
+  const [escala, setEscala] = useState<Exclude<Escala, "dia">>(unidad(h, hoy) === "semana" ? "semana" : "mes");
+  const serie = useMemo(() => historialPor(h, hist, hoy, op, escala), [h, hist, hoy, op.libresCumplen, escala]);
+  const ancho = Math.max(340, serie.length * PASO_BARRA[escala]);
+  const u = unidad(h, hoy);
+  return (
+    <>
+      <h3 className="titulo-g">Historial</h3>
+      <p className="sub">veces por {escala === "semana" ? "semana" : escala === "mes" ? "mes" : escala === "trimestre" ? "trimestre" : "año"}{u === "semana" && escala === "semana" ? ` · objetivo ${serie[serie.length - 1]?.meta ?? ""}` : ""} · línea = objetivo · gris = días libres</p>
+      <SelectorEscala valor={escala} opciones={ESCALAS_HISTORIAL} alCambiar={setEscala} />
+      <Desplazable clave={escala}>
+        <Barras valores={serie.map((t) => t.hechas)} apiladas={serie.map((t) => t.libres)} meta={serie.map((t) => t.meta)} color={h.color}
+          etiquetas={serie.map((t) => t.etiqueta)} ancho={ancho} />
+      </Desplazable>
     </>
   );
 }

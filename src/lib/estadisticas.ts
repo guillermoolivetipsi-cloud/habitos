@@ -180,3 +180,59 @@ export function rachaActual(h: Habito, hist: Historial, hoy: Dia, op: Opciones):
   return ult.hasta >= limite ? ult : null;
 }
 
+
+/* ---------- Series para gráficos que se desplazan ---------- */
+
+export type Escala = "dia" | "semana" | "mes" | "trimestre" | "anio";
+export interface Tramo { inicio: Dia; fin: Dia; etiqueta: string }
+
+const MES_C = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+
+/** Divide [desde, hoy] en tramos de la escala, con una etiqueta corta (vacía donde no hace falta). */
+export function tramos(desde: Dia, hoy: Dia, escala: Escala): Tramo[] {
+  const out: Tramo[] = [];
+  if (escala === "dia") {
+    for (const d of dias(desde, hoy)) out.push({ inicio: d, fin: d, etiqueta: d.slice(8) === "01" ? MES_C[+d.slice(5, 7) - 1] : diaSemana(d) === 0 ? String(+d.slice(8)) : "" });
+  } else if (escala === "semana") {
+    for (let l = lunes(desde); l <= hoy; l = sumarDias(l, 7)) {
+      const fin = sumarDias(l, 6);
+      const primero = l.slice(8) === "01" || fin.slice(5, 7) !== l.slice(5, 7) ? `${fin.slice(0, 7)}-01` : null;
+      out.push({ inicio: l, fin, etiqueta: primero ? (primero.slice(5, 7) === "01" ? fin.slice(0, 4) : MES_C[+primero.slice(5, 7) - 1]) : "" });
+    }
+  } else if (escala === "mes") {
+    for (let m = mesDe(desde); m <= mesDe(hoy); m = sumarMeses(m, 1))
+      out.push({ inicio: primerDia(m), fin: ultimoDia(m), etiqueta: m.slice(5) === "01" ? m.slice(0, 4) : MES_C[+m.slice(5) - 1] });
+  } else if (escala === "trimestre") {
+    const q0 = Math.floor((+desde.slice(5, 7) - 1) / 3);
+    for (let m = `${desde.slice(0, 4)}-${String(q0 * 3 + 1).padStart(2, "0")}`; m <= mesDe(hoy); m = sumarMeses(m, 3)) {
+      const t = Math.floor((+m.slice(5) - 1) / 3) + 1;
+      out.push({ inicio: primerDia(m), fin: ultimoDia(sumarMeses(m, 2)), etiqueta: t === 1 ? `T1 ${m.slice(2, 4)}` : `T${t}` });
+    }
+  } else {
+    for (let y = +desde.slice(0, 4); y <= +hoy.slice(0, 4); y++) out.push({ inicio: `${y}-01-01`, fin: `${y}-12-31`, etiqueta: String(y) });
+  }
+  return out;
+}
+
+const inicioDe = (h: Habito, hist: Historial) => {
+  const primero = [...hist.keys()].sort()[0];
+  return primero && primero < h.frecuencias[0].desde ? primero : h.frecuencias[0].desde;
+};
+
+/** Veces por tramo desde el primer registro: hechas, días libres y meta del tramo completo. */
+export function historialPor(h: Habito, hist: Historial, hoy: Dia, op: Opciones, escala: Exclude<Escala, "dia">) {
+  return tramos(inicioDe(h, hist), hoy, escala).map((t) => {
+    const fin = t.fin > hoy ? hoy : t.fin;
+    let libres = 0;
+    for (const d of dias(t.inicio, fin)) if (valorEn(hist, d) === "libre") libres++;
+    const meta = escala === "semana" && unidad(h, t.inicio) === "semana" ? metaSemana(h, t.inicio) : Math.round(esperado(h, t.inicio, t.fin));
+    return { ...t, hechas: sumar(h, hist, t.inicio, fin, op, true), libres, meta };
+  });
+}
+
+/** Puntuación al final de cada tramo, desde el primer registro. */
+export function puntuacionPor(h: Habito, hist: Historial, hoy: Dia, escala: Escala) {
+  const inicio = inicioDe(h, hist);
+  const p = puntuaciones(h, hist, inicio, hoy);
+  return tramos(inicio, hoy, escala).map((t) => ({ ...t, valor: p.get(t.fin > hoy ? hoy : t.fin) ?? 0 }));
+}

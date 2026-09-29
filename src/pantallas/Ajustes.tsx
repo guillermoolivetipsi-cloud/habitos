@@ -6,6 +6,7 @@ import { importarArchivoLoop, type ResultadoImportacion } from "../lib/importarL
 import { pausaActiva } from "../lib/calculos";
 import { hayNotificaciones, pedirPermiso, permisoNotificaciones } from "../lib/notificaciones";
 import { planificarAvisos } from "../lib/recordatorios";
+import { buscarActualizacion, descargar, versionInstalada, type Actualizacion } from "../lib/actualizacion";
 import { exportarCopia, leerCopia, restaurarCopia, ultimaCopia, type Copia } from "../lib/copia";
 import { iniciarSql } from "../lib/sql";
 import { MESES_CORTOS, fechaCorta } from "../lib/fecha";
@@ -61,7 +62,7 @@ export default function Ajustes({ datos, hoy, sub, setSub, avisar, abrirDetalle 
       <div className="seccion">Recordatorios</div>
       <button className="item" onClick={() => setSub("recordatorios")}>
         <Icono n="notifications" estilo={{ color: "var(--mu)" }} />
-        <div className="t"><div>Recordatorios</div><div className="chico">{p.avisoNoSiHecho ? "No suenan si ya está hecho" : "Suenan siempre"} · {datos.habitos.filter((h) => h.recordatorio).length} hábitos con hora</div></div>
+        <div className="t"><div>Recordatorios</div><div className="chico">Opciones generales · la hora se elige en cada hábito</div></div>
         <Icono n="chevron_right" estilo={{ color: "#555" }} />
       </button>
       <div className="seccion">Revisión</div>
@@ -74,6 +75,8 @@ export default function Ajustes({ datos, hoy, sub, setSub, avisar, abrirDetalle 
         <div className="t"><div>Sugerir cuando un hábito está por debajo de</div><div className="chico">del objetivo en los últimos 90 días</div></div>
         <div className="chips">{[20, 30, 40, 50].map((n) => <button key={n} className={`chip${p.umbralSugerencias === n ? " activo" : ""}`} onClick={() => cambiar("umbralSugerencias", n)}>{n}%</button>)}</div>
       </div>
+      <div className="seccion">App</div>
+      <VersionApp avisar={avisar} />
       <div className="seccion">Tus datos</div>
       <button className="item" onClick={() => setSub("copias")}>
         <Icono n="backup" estilo={{ color: "var(--mu)" }} />
@@ -299,7 +302,7 @@ function Recordatorios({ datos, hoy, volver }: { datos: Datos; hoy: Dia; volver:
       <Opcion titulo="No avisar si ya está hecho" detalle="Si marcaste el hábito antes de la hora, el aviso de hoy no suena." on={p.avisoNoSiHecho} alCambiar={() => guardarPreferencia("avisoNoSiHecho", !p.avisoNoSiHecho)} />
       <Opcion titulo="Aviso de cierre de semana" detalle="Domingo a las 20:00: abre el resumen de la semana." on={p.avisoCierreSemana} alCambiar={() => guardarPreferencia("avisoCierreSemana", !p.avisoCierreSemana)} />
       <Opcion titulo="Aviso de cierre de mes" detalle="El último día del mes a las 20:00." on={p.avisoCierreMes} alCambiar={() => guardarPreferencia("avisoCierreMes", !p.avisoCierreMes)} />
-      <p className="chico" style={{ marginTop: 10 }}>La hora de cada hábito se cambia en Editar. La notificación trae los botones "Hecho" (lo marca sin abrir la app) y "En 1 hora".</p>
+      <div className="aviso" style={{ marginTop: 10 }}><Icono n="info" /> Cada recordatorio vive en su hábito: se prende, se apaga y se cambia la hora desde el hábito (tocando la campanita en su detalle, o en Editar). Acá están solo las opciones que valen para todos.</div>
       <div className="seccion">Próximos avisos</div>
       {avisos.length ? avisos.slice(0, 12).map((a) => (
         <div key={a.id} className="item" style={{ padding: "8px 0" }}>
@@ -309,5 +312,27 @@ function Recordatorios({ datos, hoy, volver }: { datos: Datos; hoy: Dia; volver:
         </div>
       )) : <p className="chico">No hay avisos en los próximos 3 días.</p>}
     </>
+  );
+}
+
+function VersionApp({ avisar }: { avisar: (c: React.ReactNode) => void }) {
+  const [version, setVersion] = useState<string | null>(null);
+  const [nueva, setNueva] = useState<Actualizacion | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  useEffect(() => { versionInstalada().then((v) => setVersion(v ? v.nombre : null)); }, []);
+  return (
+    <div className="item">
+      <Icono n="system_update" estilo={{ color: "var(--mu)" }} />
+      <div className="t"><div>Versión {version ?? "de prueba (navegador)"}</div><div className="chico">{nueva ? `Disponible: ${nueva.version}` : "Se fija sola al abrir la app"}</div></div>
+      {version && (nueva
+        ? <button className="accion principal" onClick={() => descargar(nueva)}>Actualizar</button>
+        : <button className="accion" disabled={buscando} onClick={async () => {
+            setBuscando(true);
+            const a = await buscarActualizacion();
+            setBuscando(false);
+            setNueva(a);
+            if (!a) avisar("Tenés la última versión");
+          }}>{buscando ? "Buscando…" : "Buscar"}</button>)}
+    </div>
   );
 }
