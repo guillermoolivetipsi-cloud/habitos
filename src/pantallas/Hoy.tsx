@@ -262,7 +262,7 @@ function VistaSemana({ datos, hoy, op, selector, marcar, mantener, abrirDetalle 
           </div>
         ))}
       </div>
-      <p className="chico" style={{ marginTop: 12 }}>Hoy es la {prefs.invertirSemana ? "última" : "primera"} columna. La última columna cuenta los últimos 7 días. Deslizá para ver días anteriores. Tocá para marcar o desmarcar; mantené presionado para día libre.</p>
+      <p className="chico" style={{ marginTop: 12 }}>Hoy es la {prefs.invertirSemana ? "última" : "primera"} columna. La última columna cuenta los últimos 7 días. Deslizá para ver días anteriores. Tocá para marcar o desmarcar; mantené presionado para día libre (‖): no corta la racha ni cuenta como fallo.</p>
     </>
   );
 }
