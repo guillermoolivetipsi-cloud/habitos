@@ -158,9 +158,18 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 
 .desplazable { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 -4px; padding: 0 4px; }
 .desplazable::-webkit-scrollbar { display: none; }
-.escalas { display: inline-flex; gap: 2px; background: var(--s2); border-radius: 8px; padding: 2px; margin: 2px 0 8px; }
-.escalas button { font-size: 12px; padding: 4px 9px; border-radius: 6px; color: var(--mu); }
-.escalas button.activo { background: var(--s3); color: var(--tx); }
+/* Gráficos como Loop: título a la izquierda, escala en un desplegable a la derecha. */
+.seccion-grafico { margin-top: 18px; }
+.cab-grafico { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cab-grafico h3 { font-size: 16px; font-weight: 400; margin: 0; }
+.desplegable { position: relative; display: inline-flex; align-items: center; }
+.desplegable select { appearance: none; -webkit-appearance: none; background: transparent; border: 0; color: var(--tx2); font: inherit; font-size: 14px; padding: 6px 26px 6px 10px; border-radius: 8px; }
+.desplegable select:focus-visible { outline: 2px solid var(--acento); }
+.desplegable select option { background: var(--s2); color: var(--tx); }
+.desplegable .material-symbols-outlined { position: absolute; right: 2px; pointer-events: none; color: var(--tx2); }
+.grafico-loop { display: flex; align-items: flex-start; }
+.grafico-loop .desplazable { flex: 1; min-width: 0; margin: 0; padding: 0; }
+.pie-grafico { font-size: 11px; color: var(--dim); margin: 4px 0 0; }
 
 .aviso-version { display: flex; align-items: center; gap: 10px; margin: 8px 16px 0; padding: 10px 12px; border-radius: 12px; background: #69f0ae14; border: 1px solid #69f0ae55; font-size: 13.5px; }
 

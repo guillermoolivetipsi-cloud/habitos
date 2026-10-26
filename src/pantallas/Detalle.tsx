@@ -7,7 +7,7 @@ import {
 } from "../lib/estadisticas";
 import { DIAS_CORTOS, DIAS_LARGOS, MESES_CORTOS, fechaCorta, sumarDias } from "../lib/fecha";
 import type { Habito } from "../tipos";
-import { AnilloPuntuacion, Barras, Calendario, Desplazable, FrecuenciaPuntos, Lineas, SelectorEscala, redondeo } from "../ui/Graficos";
+import { AnilloPuntuacion, Barras, BarrasHistorial, CabeceraGrafico, Calendario, Desplazable, FrecuenciaPuntos, LineaPuntuacion, Lineas, etiquetasLoop, redondeo } from "../ui/Graficos";
 import { Barra, CampoRecordatorio, Hoja, Icono } from "../ui/piezas";
 import { db } from "../db";
 import { MOMENTOS } from "./Hoy";
@@ -62,7 +62,7 @@ export default function Detalle({ h, datos, hoy, volver, editar, avisar }: {
         ))}
       </div>
 
-      {pestana === "Progreso" && <Progreso {...{ h, hist, hoy, op, r, punt }} />}
+      {pestana === "Progreso" && <Progreso {...{ h, hist, hoy, op, r }} />}
       {pestana === "Patrones" && (
         <>
           <DiasSemana h={h} hist={hist} hoy={hoy} />
@@ -128,7 +128,7 @@ export function ConfirmarEliminar({ h, registros, cerrar, alListo, avisar }: { h
 
 type PropsP = { h: Habito; hist: Map<string, import("../tipos").Registro>; hoy: string; op: Opciones };
 
-function Progreso({ h, hist, hoy, op, r, punt }: PropsP & { r: ReturnType<typeof resumen>; punt: Map<string, number> }) {
+function Progreso({ h, hist, hoy, op, r }: PropsP & { r: ReturnType<typeof resumen> }) {
   const tile = (a: string, b: React.ReactNode, c?: string) => (
     <div className="tile"><div className="chico">{a}</div><div style={{ fontSize: 17 }}>{b}</div>{c && <div className="chico">{c}</div>}</div>
   );
@@ -146,7 +146,7 @@ function Progreso({ h, hist, hoy, op, r, punt }: PropsP & { r: ReturnType<typeof
         {tile("Por semana", redondeo(r.porSemana), "promedio de las últimas 12")}
       </div>
 
-      <GraficoPuntuacion h={h} hist={hist} hoy={hoy} punt={punt} />
+      <GraficoPuntuacion h={h} hist={hist} hoy={hoy} />
       <GraficoHistorial h={h} hist={hist} hoy={hoy} op={op} />
 
       {h.nuncaDosVeces && (
@@ -177,44 +177,35 @@ function semanasCalendario(hist: PropsP["hist"], hoy: string) {
 }
 
 /** Ancho de cada punto o barra según la escala, para que el gráfico se pueda recorrer hacia atrás. */
-const PASO: Record<Escala, number> = { dia: 9, semana: 18, mes: 30, trimestre: 40, anio: 56 };
-/** Las barras llevan el número arriba: necesitan más lugar que los puntos de una línea. */
-const PASO_BARRA: Record<Exclude<Escala, "dia">, number> = { semana: 26, mes: 32, trimestre: 44, anio: 60 };
-const ESCALAS_PUNTUACION: [Escala, string][] = [["dia", "Día"], ["semana", "Semana"], ["mes", "Mes"], ["trimestre", "Trim."], ["anio", "Año"]];
-const ESCALAS_HISTORIAL: [Exclude<Escala, "dia">, string][] = [["semana", "Semana"], ["mes", "Mes"], ["trimestre", "Trim."], ["anio", "Año"]];
+const PASO: Record<Escala, number> = { dia: 16, semana: 30, mes: 36, trimestre: 44, anio: 56 };
+const PASO_BARRA: Record<Exclude<Escala, "dia">, number> = { semana: 30, mes: 32, trimestre: 44, anio: 56 };
+const ESCALAS_PUNTUACION: [Escala, string][] = [["dia", "Día"], ["semana", "Semana"], ["mes", "Mes"], ["trimestre", "Trimestre"], ["anio", "Año"]];
+const ESCALAS_HISTORIAL: [Exclude<Escala, "dia">, string][] = [["semana", "Semana"], ["mes", "Mes"], ["trimestre", "Trimestre"], ["anio", "Año"]];
+const NOMBRE_ESCALA: Record<Escala, string> = { dia: "día", semana: "semana", mes: "mes", trimestre: "trimestre", anio: "año" };
 
-function GraficoPuntuacion({ h, hist, hoy, punt }: { h: Habito; hist: PropsP["hist"]; hoy: string; punt: Map<string, number> }) {
+function GraficoPuntuacion({ h, hist, hoy }: { h: Habito; hist: PropsP["hist"]; hoy: string }) {
   const [escala, setEscala] = useState<Escala>("semana");
   const serie = useMemo(() => puntuacionPor(h, hist, hoy, escala), [h, hist, hoy, escala]);
-  const ancho = Math.max(340, serie.length * PASO[escala] + 40);
   return (
-    <>
-      <h3 className="titulo-g">Puntuación</h3>
-      <p className="sub">Lo reciente pesa más · hace 1 mes {punt.get(sumarDias(hoy, -30)) ?? 0} · hace 1 año {punt.get(sumarDias(hoy, -365)) ?? 0} · deslizá para ver el pasado</p>
-      <SelectorEscala valor={escala} opciones={ESCALAS_PUNTUACION} alCambiar={setEscala} />
-      <Desplazable clave={escala}>
-        <Lineas series={[{ valores: serie.map((t) => t.valor), color: h.color, puntos: escala !== "dia" }]} min={0} max={100}
-          etiquetas={serie.map((t) => t.etiqueta)} ancho={ancho} ejeDerecha />
-      </Desplazable>
-    </>
+    <section className="seccion-grafico">
+      <CabeceraGrafico titulo="Puntuación" color={h.color} valor={escala} opciones={ESCALAS_PUNTUACION} alCambiar={setEscala} />
+      <LineaPuntuacion valores={serie.map((t) => t.valor)} etiquetas={etiquetasLoop(serie.map((t) => t.inicio), escala)} color={h.color}
+        paso={PASO[escala]} clave={escala} puntos={escala !== "dia"} />
+    </section>
   );
 }
 
 function GraficoHistorial({ h, hist, hoy, op }: PropsP) {
   const [escala, setEscala] = useState<Exclude<Escala, "dia">>(unidad(h, hoy) === "semana" ? "semana" : "mes");
   const serie = useMemo(() => historialPor(h, hist, hoy, op, escala), [h, hist, hoy, op.libresCumplen, escala]);
-  const ancho = Math.max(340, serie.length * PASO_BARRA[escala]);
-  const u = unidad(h, hoy);
+  const hayLibres = serie.some((t) => t.libres > 0);
   return (
-    <>
-      <h3 className="titulo-g">Historial</h3>
-      <p className="sub">veces por {escala === "semana" ? "semana" : escala === "mes" ? "mes" : escala === "trimestre" ? "trimestre" : "año"}{u === "semana" && escala === "semana" ? ` · objetivo ${serie[serie.length - 1]?.meta ?? ""}` : ""} · línea = objetivo · gris = días libres</p>
-      <SelectorEscala valor={escala} opciones={ESCALAS_HISTORIAL} alCambiar={setEscala} />
-      <Desplazable clave={escala}>
-        <Barras valores={serie.map((t) => t.hechas)} apiladas={serie.map((t) => t.libres)} meta={serie.map((t) => t.meta)} color={h.color}
-          etiquetas={serie.map((t) => t.etiqueta)} ancho={ancho} />
-      </Desplazable>
-    </>
+    <section className="seccion-grafico">
+      <CabeceraGrafico titulo="Historial" color={h.color} valor={escala} opciones={ESCALAS_HISTORIAL} alCambiar={setEscala} />
+      <BarrasHistorial valores={serie.map((t) => t.hechas)} apiladas={serie.map((t) => t.libres)} meta={serie.map((t) => t.meta)} color={h.color}
+        etiquetas={etiquetasLoop(serie.map((t) => t.inicio), escala)} paso={PASO_BARRA[escala]} clave={escala} />
+      <p className="pie-grafico">Veces por {NOMBRE_ESCALA[escala]} · punteada = objetivo{hayLibres ? " · gris = días libres" : ""}</p>
+    </section>
   );
 }
 

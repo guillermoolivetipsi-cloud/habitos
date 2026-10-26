@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import type { Habito, Valor } from "../tipos";
+import type { Escala } from "../lib/estadisticas";
 import { DIAS_CORTOS, MESES_CORTOS, fechaCorta, lunes, sumarDias } from "../lib/fecha";
 
 export const redondeo = (v: number) => String(Math.round(v * 10) / 10).replace(".", ",");
@@ -202,11 +203,101 @@ export function Desplazable({ children, clave }: { children: ReactNode; clave: s
   );
 }
 
-/** Selector de escala (Día, Semana, Mes…), como el de Loop. */
-export function SelectorEscala<T extends string>({ valor, opciones, alCambiar }: { valor: T; opciones: [T, string][]; alCambiar: (v: T) => void }) {
+/** Cabecera de un gráfico como en Loop: título en el color del hábito y la escala en un desplegable a la derecha. */
+export function CabeceraGrafico<T extends string>({ titulo, color, valor, opciones, alCambiar }: { titulo: string; color: string; valor: T; opciones: [T, string][]; alCambiar: (v: T) => void }) {
   return (
-    <div className="escalas" role="tablist">
-      {opciones.map(([k, l]) => <button key={k} role="tab" aria-selected={valor === k} className={valor === k ? "activo" : ""} onClick={() => alCambiar(k)}>{l}</button>)}
+    <div className="cab-grafico">
+      <h3 style={{ color }}>{titulo}</h3>
+      <label className="desplegable">
+        <select aria-label={`Escala de ${titulo.toLowerCase()}`} value={valor} onChange={(e) => alCambiar(e.target.value as T)}>
+          {opciones.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        <span className="material-symbols-outlined" aria-hidden="true">arrow_drop_down</span>
+      </label>
     </div>
+  );
+}
+
+const MES_LOOP = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+
+/** Etiquetas de dos líneas, como Loop: el tramo arriba y el año abajo cuando cambia. */
+export function etiquetasLoop(inicios: string[], escala: Escala): [string, string][] {
+  return inicios.map((d, i) => {
+    const prev = inicios[i - 1];
+    const anio = !prev || prev.slice(0, 4) !== d.slice(0, 4) ? d.slice(0, 4) : "";
+    const mes = +d.slice(5, 7) - 1;
+    if (escala === "anio") return [d.slice(0, 4), ""];
+    if (escala === "trimestre") return [`T${Math.floor(mes / 3) + 1}`, anio];
+    if (escala === "mes") return [MES_LOOP[mes], anio];
+    const cambiaMes = !prev || prev.slice(0, 7) !== d.slice(0, 7);
+    if (escala === "semana") return cambiaMes ? [MES_LOOP[mes], anio] : [String(+d.slice(8)), ""];
+    // Por día: el mes al empezar cada mes y el número los lunes.
+    return cambiaMes ? [MES_LOOP[mes], anio] : diaSemanaLoop(d) === 0 ? [String(+d.slice(8)), ""] : ["", ""];
+  });
+}
+const diaSemanaLoop = (d: string) => (new Date(d + "T12:00:00Z").getUTCDay() + 6) % 7;
+
+const ALTO_LOOP = 186, ABAJO_LOOP = 34;
+const Rotulos = ({ etiquetas, paso }: { etiquetas: [string, string][]; paso: number }) => (
+  <>
+    {etiquetas.map(([a, b], i) => (
+      <g key={i}>
+        {a && <text x={paso / 2 + i * paso} y={ALTO_LOOP - ABAJO_LOOP + 16} textAnchor="middle" fontSize={11} fill="#8a8a8a">{a}</text>}
+        {b && <text x={paso / 2 + i * paso} y={ALTO_LOOP - ABAJO_LOOP + 29} textAnchor="middle" fontSize={11} fill="#8a8a8a">{b}</text>}
+      </g>
+    ))}
+  </>
+);
+
+/** Puntuación como Loop: líneas guía cada 20 % con el eje fijo a la izquierda y un punto por valor. Se desplaza hacia el pasado. */
+export function LineaPuntuacion({ valores, etiquetas, color, paso, clave, puntos = true }: { valores: number[]; etiquetas: [string, string][]; color: string; paso: number; clave: string; puntos?: boolean }) {
+  const arriba = 10, h = ALTO_LOOP - arriba - ABAJO_LOOP, W = Math.max(290, valores.length * paso);
+  const y = (v: number) => arriba + h * (1 - v / 100);
+  const guias = [0, 20, 40, 60, 80, 100];
+  const pts = valores.map((v, i) => `${paso / 2 + i * paso},${y(v)}`).join(" ");
+  return (
+    <div className="grafico-loop">
+      <svg width={36} height={ALTO_LOOP} aria-hidden="true" style={{ flex: "none" }}>
+        {guias.map((t) => <text key={t} x={32} y={y(t) + 3.5} textAnchor="end" fontSize={10.5} fill="#6e6e6e">{t}%</text>)}
+      </svg>
+      <Desplazable clave={clave}>
+        <svg width={W} height={ALTO_LOOP} role="img" aria-label="Puntuación" style={{ display: "block" }}>
+          {guias.map((t) => <line key={t} x1={0} x2={W} y1={y(t)} y2={y(t)} stroke="#1f1f1f" />)}
+          <polyline points={pts} fill="none" stroke={color} strokeWidth={2.2} strokeLinejoin="round" />
+          {puntos && valores.map((v, i) => <circle key={i} cx={paso / 2 + i * paso} cy={y(v)} r={3.4} fill={color} />)}
+          <Rotulos etiquetas={etiquetas} paso={paso} />
+        </svg>
+      </Desplazable>
+    </div>
+  );
+}
+
+/** Historial como Loop: barras finas con el número arriba en el color del hábito. Días libres en gris encima; objetivo punteado. */
+export function BarrasHistorial({ valores, apiladas, meta, etiquetas, color, paso, clave }: { valores: number[]; apiladas: number[]; meta: number[]; etiquetas: [string, string][]; color: string; paso: number; clave: string }) {
+  const arriba = 22, h = ALTO_LOOP - arriba - ABAJO_LOOP, W = Math.max(326, valores.length * paso);
+  const tot = valores.map((v, i) => v + (apiladas[i] ?? 0));
+  const max = Math.max(1, ...tot, ...meta);
+  const y = (v: number) => arriba + h * (1 - v / max);
+  const bw = Math.min(11, paso * 0.34);
+  let camino = "";
+  meta.forEach((m, i) => { camino += `${i ? "L" : "M"}${i * paso} ${y(m)}H${(i + 1) * paso}`; });
+  return (
+    <Desplazable clave={clave}>
+      <svg width={W} height={ALTO_LOOP} role="img" aria-label="Historial" style={{ display: "block" }}>
+        {[0.25, 0.5, 0.75, 1].map((t) => <line key={t} x1={0} x2={W} y1={arriba + h * (1 - t)} y2={arriba + h * (1 - t)} stroke="#1f1f1f" />)}
+        <path d={camino} fill="none" stroke={color} strokeOpacity={0.45} strokeDasharray="3 4" strokeWidth={1.2} />
+        {valores.map((v, i) => {
+          const cx = paso / 2 + i * paso, extra = apiladas[i] ?? 0;
+          return (
+            <g key={i}>
+              {v > 0 && <rect x={cx - bw / 2} y={y(v)} width={bw} height={y(0) - y(v)} fill={color} />}
+              {extra > 0 && <rect x={cx - bw / 2} y={y(tot[i])} width={bw} height={y(v) - y(tot[i])} fill="#4a4a4a" />}
+              {tot[i] > 0 && <text x={cx} y={y(tot[i]) - 5} textAnchor="middle" fontSize={11} fill={color}>{redondeo(v)}</text>}
+            </g>
+          );
+        })}
+        <Rotulos etiquetas={etiquetas} paso={paso} />
+      </svg>
+    </Desplazable>
   );
 }
