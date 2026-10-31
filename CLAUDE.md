@@ -21,7 +21,7 @@ Prototipo navegable de referencia: https://claude.ai/artifact/6KASiA2qMMYGmxRA7w
 
 - `src/tipos.ts`: modelo de datos.
 - `src/db.ts`: base local (Dexie).
-- `src/lib/estadisticas.ts`: puntuación (misma fórmula que Loop, verificada contra sus valores), rachas, resúmenes y series para los gráficos.
+- `src/lib/estadisticas.ts`: puntuación (misma fórmula que Loop, verificada contra sus valores; el día libre no entra en la cuenta y cada punto del gráfico es el promedio del tramo), rachas, resúmenes y series para los gráficos.
 - `src/lib/revision.ts`: cumplimiento global, sugerencias, patrones, votos por identidad y cambios entre períodos. Un período en curso se compara contra el anterior a la misma altura.
 - `src/lib/objetivos.ts`: progreso, estado y ritmo de los objetivos.
 - `src/lib/tareas.ts`: tareas de un objetivo (hecha o no hecha; fecha y nota opcionales): orden, marcar, deshacer, pasar pendientes al mes siguiente. Pantalla en `src/pantallas/Tareas.tsx`.

@@ -22,6 +22,46 @@ describe("puntuación (fórmula de Loop)", () => {
     const p = puntuaciones(habito(), x, "2026-01-01", "2026-01-02");
     expect(p.get("2026-01-02")).toBe(p.get("2026-01-01"));
   });
+  it("un día libre no cuenta como no hecho en los días siguientes", () => {
+    const fechas = [...dias("2026-01-01", "2026-01-20")];
+    const conLibre = hist(fechas.map((d, i) => [d, i === 9 ? "libre" : "hecho"] as [Dia, Valor]));
+    const sinEseDia = hist(fechas.slice(0, 19).map((d) => [d, "hecho"] as [Dia, Valor]));
+    expect(puntuaciones(habito(5, 7), conLibre, "2026-01-20", "2026-01-20").get("2026-01-20"))
+      .toBe(puntuaciones(habito(5, 7), sinEseDia, "2026-01-19", "2026-01-19").get("2026-01-19"));
+  });
+
+  // Misma cuenta que ScoreList.recompute de Loop (hábitos sí/no), con marcas pseudoaleatorias fijas.
+  const comoLoop = (num: number, den: number, valores: (Valor | undefined)[]) => {
+    const frec = num / den;
+    const n = frec < 1 ? num * 2 : num, d = frec < 1 ? den * 2 : den;
+    const mult = Math.pow(0.5, Math.sqrt(frec) / 13);
+    const ventana: (Valor | undefined)[] = [];
+    let suma = 0, score = 0;
+    return valores.map((v) => {
+      if (v !== "libre") {
+        ventana.push(v);
+        if (ventana.length > d && ventana.shift() === "hecho") suma--;
+        if (v === "hecho") suma++;
+        score = score * mult + Math.min(1, suma / n) * (1 - mult);
+      }
+      return score * 100;
+    });
+  };
+  const marcasAl = (largo: number, pHecho: number, pLibre: number) => {
+    let x = 12345;
+    const azar = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
+    return Array.from({ length: largo }, () => { const r = azar(); return r < pLibre ? "libre" : r < pLibre + pHecho ? "hecho" : undefined; }) as (Valor | undefined)[];
+  };
+  const fechas = [...dias("2026-01-01", "2027-06-30")];
+  for (const [num, den, pHecho, pLibre] of [[1, 1, 0.7, 0.1], [5, 7, 0.6, 0.15], [3, 7, 0.4, 0.05], [1, 7, 0.2, 0.25]]) {
+    it(`da lo mismo que Loop día por día (${num} en ${den}, ${pLibre * 100}% libres)`, () => {
+      const valores = marcasAl(fechas.length, pHecho, pLibre);
+      const x = hist(fechas.flatMap((d, i) => (valores[i] ? [[d, valores[i]] as [Dia, Valor]] : [])));
+      const nuestra = puntuaciones(habito(num, den), x, fechas[0], fechas[fechas.length - 1]);
+      const loop = comoLoop(num, den, valores);
+      expect(fechas.map((d) => nuestra.get(d))).toEqual(loop.map(Math.round));
+    });
+  }
 });
 
 describe("rachas", () => {
@@ -51,10 +91,13 @@ describe("series por escala", async () => {
     const m = historialPor(h, x, "2026-02-10", op, "mes");
     expect(m.map((t) => [t.etiqueta, t.hechas, t.libres, t.meta])).toEqual([["2026", 1, 1, 22], ["feb", 1, 0, 20]]);
   });
-  it("la puntuación por semana termina en la de hoy", () => {
-    const h = habito();
+  it("la puntuación de cada tramo es el promedio de sus días, sin contar días fuera de rango", () => {
     const x = hist([...dias("2026-01-01", "2026-01-20")].map((d) => [d, "hecho"] as [Dia, Valor]));
-    const s = puntuacionPor(h, x, "2026-01-20", "semana");
-    expect(s[s.length - 1].valor).toBe(puntuaciones(h, x, "2026-01-20", "2026-01-20").get("2026-01-20"));
+    // Hecho todos los días: al día n la puntuación es 1 - 0,5^(n/13).
+    const dia = (n: number) => 100 * (1 - Math.pow(0.5, n / 13));
+    const promedio = (ns: number[]) => Math.round(ns.reduce((a, n) => a + dia(n), 0) / ns.length);
+    const s = puntuacionPor(habito(), x, "2026-01-20", "semana");
+    expect(s[0].valor).toBe(promedio([1, 2, 3, 4])); // la primera semana empieza el jueves 1
+    expect(s[s.length - 1].valor).toBe(promedio([19, 20])); // la última llega hasta hoy
   });
 });

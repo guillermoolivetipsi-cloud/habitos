@@ -9,10 +9,11 @@ import { diaSemana, dias, diasDelMes, lunes, mesDe, primerDia, sumarDias, sumarM
  * Puntuación como la de Loop: promedio exponencial donde cada día aporta el
  * porcentaje cumplido de la ventana de su frecuencia (hechos en los últimos
  * `den` días / `num`, hasta 1). Lo reciente pesa más: la vida media es de
- * 13 días en un hábito diario. Los días libres no mueven la puntuación.
- * Devuelve la puntuación (0 a 100) al final de cada día de [desde, hasta].
+ * 13 días en un hábito diario. Los días libres no mueven la puntuación ni
+ * entran en la ventana: es como si ese día no hubiera existido.
+ * Devuelve la puntuación sin redondear (0 a 100) al final de cada día de [desde, hasta].
  */
-export function puntuaciones(h: Habito, hist: Historial, desde: Dia, hasta: Dia): Map<Dia, number> {
+function puntuacionesExactas(h: Habito, hist: Historial, desde: Dia, hasta: Dia): Map<Dia, number> {
   const out = new Map<Dia, number>();
   const inicio = h.frecuencias[0].desde < desde ? h.frecuencias[0].desde : desde;
   let score = 0;
@@ -28,17 +29,24 @@ export function puntuaciones(h: Habito, hist: Historial, desde: Dia, hasta: Dia)
     const num = base * doble;
     const den = baseDen * doble;
     const v = valorEn(hist, d);
-    const p = puntos(h, v);
-    ventana.push(p);
-    suma += p;
-    while (ventana.length > den) suma -= ventana.shift()!;
-    if (v !== "libre" && (!f.dias || f.dias.includes(diaSemana(d)) || p > 0)) {
-      const mult = Math.pow(0.5, Math.sqrt(base / baseDen) / 13);
-      score = score * mult + Math.min(1, suma / num) * (1 - mult);
+    if (v !== "libre") {
+      const p = puntos(h, v);
+      ventana.push(p);
+      suma += p;
+      while (ventana.length > den) suma -= ventana.shift()!;
+      if (!f.dias || f.dias.includes(diaSemana(d)) || p > 0) {
+        const mult = Math.pow(0.5, Math.sqrt(base / baseDen) / 13);
+        score = score * mult + Math.min(1, suma / num) * (1 - mult);
+      }
     }
-    if (d >= desde) out.set(d, Math.round(score * 100));
+    if (d >= desde) out.set(d, score * 100);
   }
   return out;
+}
+
+/** Puntuación redondeada (0 a 100) al final de cada día de [desde, hasta]. */
+export function puntuaciones(h: Habito, hist: Historial, desde: Dia, hasta: Dia): Map<Dia, number> {
+  return new Map([...puntuacionesExactas(h, hist, desde, hasta)].map(([d, v]) => [d, Math.round(v)]));
 }
 
 export interface Resumen {
@@ -230,9 +238,13 @@ export function historialPor(h: Habito, hist: Historial, hoy: Dia, op: Opciones,
   });
 }
 
-/** Puntuación al final de cada tramo, desde el primer registro. */
+/** Como Loop: cada tramo vale el promedio de la puntuación de sus días, desde el primer registro hasta hoy. */
 export function puntuacionPor(h: Habito, hist: Historial, hoy: Dia, escala: Escala) {
   const inicio = inicioDe(h, hist);
-  const p = puntuaciones(h, hist, inicio, hoy);
-  return tramos(inicio, hoy, escala).map((t) => ({ ...t, valor: p.get(t.fin > hoy ? hoy : t.fin) ?? 0 }));
+  const p = puntuacionesExactas(h, hist, inicio, hoy);
+  return tramos(inicio, hoy, escala).map((t) => {
+    let suma = 0, n = 0;
+    for (const d of dias(t.inicio < inicio ? inicio : t.inicio, t.fin > hoy ? hoy : t.fin)) { suma += p.get(d) ?? 0; n++; }
+    return { ...t, valor: n ? Math.round(suma / n) : 0 };
+  });
 }
